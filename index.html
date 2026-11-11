@@ -1,0 +1,3829 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FIYLORANT v26.11.1</title>
+  <style>
+
+    /* 仿特戰英豪對戰報告面板（移到畫面中間偏右） */
+    #combat-report-panel {
+      position: absolute; right: 40px; top: 35%; width: 340px;
+      background: rgba(15, 25, 35, 0.9); border: 2px solid #ff4655;
+      border-radius: 6px; padding: 12px; color: #fff; font-family: sans-serif;
+      display: none; z-index: 100; box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+    }
+    .combat-report-header {
+      font-size: 14px; font-weight: bold; color: #ff4655; margin-bottom: 8px;
+      border-bottom: 1px solid rgba(255,70,85,0.4); padding-bottom: 4px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .combat-row {
+      display: flex; justify-content: space-between; align-items: center;
+      background: rgba(255,255,255,0.05); margin-bottom: 6px; padding: 6px 8px; border-radius: 4px;
+      font-size: 12px;
+    }
+    .combat-col-weapon {
+      font-size: 9px; color: #ffaa00; margin-top: 2px; font-weight: bold;
+    }
+    .combat-col-dmg { font-size: 18px; font-weight: bold; color: #ece8e1; width: 60px; text-align: center; }
+    .combat-col-hits { font-size: 10px; color: #8b978f; line-height: 1.3; width: 40px; text-align: right; }
+    .combat-col-target { flex-grow: 1; text-align: center; font-weight: bold; color: #ece8e1; font-size: 11px; }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body { background-color: #0f1923; color: #fff; font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; }
+    #canvas-container { width: 100vw; height: 100vh; display: block; }
+
+    /* UI Overlay */
+    .overlay {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(15, 25, 35, 0.92); display: flex; flex-direction: column;
+      justify-content: center; align-items: center; z-index: 100;
+    }
+    .panel {
+      background: #1f2326; border: 2px solid #ff4655; border-radius: 8px;
+      padding: 30px; width: 480px; text-align: center; box-shadow: 0 0 25px rgba(255, 70, 85, 0.4);
+    }
+    h1 { color: #ff4655; font-size: 32px; font-weight: 800; letter-spacing: 2px; margin-bottom: 5px; }
+    p { color: #ece8e1; font-size: 14px; margin-bottom: 20px; line-height: 1.5; }
+    
+    .form-group { margin-bottom: 15px; text-align: left; }
+    label { display: block; font-size: 12px; color: #8b978f; margin-bottom: 5px; text-transform: uppercase; }
+    input, select {
+      width: 100%; padding: 10px; background: #0f1923; border: 1px solid #36404a;
+      color: #fff; border-radius: 4px; font-size: 14px; outline: none; text-transform: uppercase;
+    }
+    input:focus { border-color: #ff4655; }
+    
+    .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+    button {
+      flex: 1; padding: 12px; border: none; border-radius: 4px; font-weight: bold;
+      cursor: pointer; font-size: 14px; transition: 0.2s; text-transform: uppercase;
+    }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: #ff4655; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #d33240; }
+    .btn-secondary { background: #0f1923; color: #ece8e1; border: 1px solid #36404a; }
+    .btn-secondary:hover:not(:disabled) { background: #28343e; }
+    .btn-success { background: #00ffcc; color: #0f1923; }
+    .btn-success:hover:not(:disabled) { background: #00cca3; }
+
+    /* HUD Layer */
+    #hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: none; }
+    #crosshair {
+      position: absolute; top: 50%; left: 50%; width: 10px; height: 10px;
+      transform: translate(-50%, -50%); pointer-events: none; transition: transform 0.05s ease-out;
+    }
+    #crosshair::before, #crosshair::after { content: ''; position: absolute; background: #00ffcc; }
+    #crosshair::before { top: 4px; left: -6px; width: 22px; height: 2px; }
+    #crosshair::after { top: -6px; left: 4px; width: 2px; height: 22px; }
+
+    .hud-top {
+      position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 20px; background: rgba(15, 25, 35, 0.85);
+      padding: 10px 30px; border-radius: 4px; border-bottom: 2px solid #ff4655; font-size: 24px; font-weight: bold;
+    }
+    .hud-bottom-left {
+      position: absolute; bottom: 30px; left: 30px; background: rgba(15, 25, 35, 0.85);
+      padding: 15px 25px; border-radius: 4px; border-left: 4px solid #00ffcc;
+    }
+    .hud-bottom-right {
+      position: absolute; bottom: 30px; right: 30px; background: rgba(15, 25, 35, 0.85);
+      padding: 15px 25px; border-radius: 4px; border-right: 4px solid #ff4655; text-align: right;
+    }
+    .hud-weapons {
+      position: absolute; bottom: 140px; right: 30px; text-align: right; font-size: 16px; font-weight: bold; color: #8b978f;
+    }
+    .weapon-slot { margin-top: 5px; padding: 5px 10px; background: rgba(0,0,0,0.5); border-radius: 4px; transition: 0.2s; }
+    .weapon-slot.active { color: #fff; border-right: 4px solid #00ffcc; background: rgba(15, 25, 35, 0.85); transform: translateX(-10px); }
+    
+    #hit-indicator { position: absolute; bottom: 90px; left: 30px; color: #ffaa00; font-size: 14px; font-weight: bold; opacity: 0; transition: opacity 0.2s; }
+    #room-tag { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.6); padding: 8px 15px; border-radius: 4px; font-size: 14px; color: #00ffcc; font-weight: bold; }
+    
+    #range-damage-hud {
+      position: absolute; display: none; transform: translate(-50%, -100%);
+      color: #00ffcc; font-size: 22px; font-weight: 800; text-shadow: 0 0 8px rgba(0,255,204,0.6);
+      pointer-events: none; z-index: 200; background: rgba(15,25,35,0.7); padding: 4px 12px; border-radius: 4px; border: 1px solid #00ffcc;
+    }
+
+    #phase-announcement {
+      position: absolute; top: 25%; left: 50%; transform: translateX(-50%);
+      font-size: 42px; font-weight: 800; color: #00ffcc; text-shadow: 0 0 20px rgba(0,255,204,0.5); display: none; text-transform: uppercase; letter-spacing: 5px;
+    }
+
+    #action-bar {
+      position: absolute; top: 65%; left: 50%; transform: translate(-50%, -50%);
+      width: 240px; height: 12px; background: rgba(0,0,0,0.6); border-radius: 4px; display: none; overflow: hidden; border: 1px solid #00ffcc;
+    }
+    #action-progress { width: 0%; height: 100%; background: #00ffcc; transition: width 0.1s linear; }
+    #action-text { position: absolute; top: -25px; width: 100%; text-align: center; font-size: 13px; font-weight: bold; color: #00ffcc; text-shadow: 0 0 5px #000; }
+
+    #site-indicator { position: absolute; top: 80px; left: 50%; transform: translateX(-50%); font-size: 18px; font-weight: bold; color: #ffaa00; text-shadow: 0 0 10px rgba(0,0,0,0.8); display: none; }
+
+    #instructions {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.85); padding: 25px; border-radius: 8px; text-align: center;
+      cursor: pointer; display: none; border: 1px solid #ff4655; z-index: 50;
+    }
+
+    /* 商店與訓練場槍械選單 UI */
+    #shop-menu {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(15, 25, 35, 0.85); display: none; flex-direction: column;
+      justify-content: center; align-items: center; z-index: 150; pointer-events: auto;
+    }
+    .shop-container { width: 85%; max-width: 1000px; display: flex; gap: 15px; }
+    .shop-category { flex: 1; background: #15181c; border: 1px solid #36404a; padding: 15px; border-radius: 8px; }
+    .shop-category h2 { color: #8b978f; font-size: 14px; margin-bottom: 10px; border-bottom: 1px solid #36404a; padding-bottom: 5px; }
+    .shop-item {
+      background: #1f2326; border: 1px solid #36404a; padding: 10px; border-radius: 4px;
+      margin-bottom: 8px; cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center;
+    }
+    .shop-item:hover { border-color: #00ffcc; background: #28343e; }
+    .shop-item .name { color: #fff; font-weight: bold; font-size: 15px; }
+    .shop-item .stats { color: #8b978f; font-size: 11px; }
+    #close-shop { margin-top: 20px; padding: 12px 30px; background: #ff4655; color: #fff; border: none; font-size: 16px; font-weight: bold; border-radius: 4px; cursor: pointer; }
+    #close-shop:hover { background: #d33240; }
+  </style>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+<div id="range-damage-hud">累積傷害: 0</div>
+
+<!-- 主選單 UI -->
+<div id="main-menu" class="overlay">
+  <div class="panel">
+    <h1>FIYLORANT</h1>
+    <p>v26.11.1</p>
+    
+    <div class="form-group">
+      <label>玩家暱稱</label>
+      <input type="text" id="player-name-input" value="Agent_1">
+    </div>
+    
+    <div class="form-group">
+      <label>單人模式預設陣營</label>
+      <select id="single-team-select">
+        <option value="attacker">先攻 (進攻方)</option>
+        <option value="defender">先守 (防守方)</option>
+      </select>
+    </div>
+    
+    <div class="btn-group">
+      <button class="btn-primary" onclick="startSingleplayer()">單人對抗 Bot</button>
+      <button class="btn-success" onclick="startRangeMode()">🎯 進入 50m 訓練場</button>
+    </div>
+    
+    <div style="margin: 15px 0 5px; border-top: 1px solid #36404a;"></div>
+    <div class="btn-group">
+      <button class="btn-secondary" onclick="createRoom()">建立房間</button>
+    </div>
+    
+    <div class="form-group" style="margin-top: 10px;">
+      <label>輸入 5 碼房間代碼</label>
+      <input type="text" id="room-code-input" maxlength="5">
+    </div>
+    <button class="btn-secondary" style="width: 100%;" onclick="joinRoom()">加入房間</button>
+    
+    <div id="menu-status" style="margin-top: 10px; font-size: 12px; color: #ffaa00;"></div>
+  </div>
+</div>
+
+<!-- 房間等待大廳 UI (5v5 特戰風) -->
+<div id="lobby-menu" class="overlay" style="display: none; background: rgba(15, 25, 35, 0.95); flex-direction: column; align-items: center; justify-content: center; z-index: 1000;">
+  
+  <h1 style="color: #ff4655; font-size: 28px; margin-bottom: 5px;">FIYLORANT 自定義房間</h1>
+  <div id="lobby-code-display" style="color: #00ffcc; font-size: 16px; margin-bottom: 20px; font-weight: bold;">ROOM: -----</div>
+  
+  <!-- 特戰風格的「人數不足確認視窗」 -->
+<div id="team-warning-modal" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; z-index: 2000;">
+  <div style="background: #1f2326; border: 2px solid #ff4655; border-radius: 8px; padding: 25px; width: 420px; text-align: center; box-shadow: 0 0 25px rgba(255, 70, 85, 0.4);">
+    <h3 style="color: #ff4655; font-size: 20px; margin-bottom: 15px; text-transform: uppercase;">⚠️ 陣營人數不平衡</h3>
+    <p id="warning-modal-text" style="color: #ece8e1; font-size: 14px; margin-bottom: 20px; line-height: 1.5;">
+      其中一方陣營目前沒有任何成員。確定要開始遊戲嗎？
+    </p>
+    <div style="display: flex; gap: 10px;">
+      <button onclick="closeTeamWarning()" class="btn-secondary" style="flex: 1; padding: 10px;">取消</button>
+      <button onclick="confirmStartGame()" class="btn-primary" style="flex: 1; padding: 10px; background: #ff4655;">強制開始</button>
+    </div>
+  </div>
+</div>
+
+
+  <!-- 5v5 選擇對戰區 (點擊格子直接換位或加電腦) -->
+  <div style="display: flex; gap: 40px; margin-bottom: 25px;">
+    
+    <!-- 進攻方 (Attackers) 5格 -->
+    <div style="background: rgba(255, 70, 85, 0.1); border: 2px solid #ff4655; padding: 15px; border-radius: 8px; width: 260px;">
+      <h3 style="text-align: center; color: #ff4655; margin-top: 0; margin-bottom: 12px; font-size: 15px;">進攻方 (ATTACKERS)</h3>
+      <div id="attacker-slots" style="display: flex; flex-direction: column; gap: 8px; min-height: 240px;"></div>
+    </div>
+
+    <!-- 防守方 (Defenders) 5格 -->
+    <div style="background: rgba(54, 159, 255, 0.1); border: 2px solid #369fff; padding: 15px; border-radius: 8px; width: 260px;">
+      <h3 style="text-align: center; color: #369fff; margin-top: 0; margin-bottom: 12px; font-size: 15px;">防守方 (DEFENDERS)</h3>
+      <div id="defender-slots" style="display: flex; flex-direction: column; gap: 8px; min-height: 240px;"></div>
+    </div>
+
+  </div>
+
+  <!-- 房主控制與準備區 (移除了下方舊的加入按鈕，只保留準備與開始) -->
+  <div style="display: flex; gap: 15px; align-items: center;">
+    <button id="ready-btn" class="btn-secondary" onclick="toggleReady()" style="padding: 10px 30px;">準備</button>
+    <button id="start-btn" class="btn-primary" onclick="requestStartGame()" style="padding: 10px 30px; display: none;">👑 開始遊戲</button>
+  </div>
+  
+  <p id="room-status-tip" style="margin-top: 15px; color: #aaa; font-size: 13px;">點擊任意空位加入陣營或新增電腦...</p>
+</div>
+
+<!-- 商店與訓練場槍械選單 UI -->
+<div id="shop-menu">
+  <h1 id="shop-title" style="margin-bottom: 15px;">武器商店 (購買階段免費)</h1>
+  <div class="shop-container">
+    <div class="shop-category">
+      <h2>手槍</h2>
+      <div class="shop-item" onclick="equipWeapon('classic')"><div class="name">Classic</div><div class="stats">近:頭52/身18 | 遠:頭44/身15</div></div>
+      <div class="shop-item" onclick="equipWeapon('ghost')"><div class="name">Ghost (消音)</div><div class="stats">近:頭70/身20 | 遠:頭58/身17</div></div>
+      <div class="shop-item" onclick="equipWeapon('sheriff')"><div class="name">Sheriff</div><div class="stats">近:頭100/身37 | 遠:頭97/身34</div></div>
+    </div>
+    <div class="shop-category">
+      <h2>衝鋒槍 / 散彈槍</h2>
+      <div class="shop-item" onclick="equipWeapon('spectre')"><div class="name">Spectre (散射強化)</div><div class="stats">高射速 | 頭:52 身:22</div></div>
+      <div class="shop-item" onclick="equipWeapon('bucky')"><div class="name">Bucky (散彈)</div><div class="stats">8發明顯散射 | 近距瞬殺</div></div>
+      <div class="shop-item" onclick="equipWeapon('judge')"><div class="name">Judge (連發散彈)</div><div class="stats">6發明顯散射 | 近距高傷</div></div>
+    </div>
+    <div class="shop-category">
+      <h2>步槍 / 機槍 / 狙擊</h2>
+      <div class="shop-item" onclick="equipWeapon('phantom')"><div class="name">Phantom (消音步)</div><div class="stats">近:頭100/身25 | 遠:頭90/身24</div></div>
+      <div class="shop-item" onclick="equipWeapon('vandal')"><div class="name">Vandal (暴徒)</div><div class="stats">適度橫向抖動 | 蹲走比靜步更穩</div></div>
+      <div class="shop-item" onclick="equipWeapon('ares')"><div class="name">Ares / Odin</div><div class="stats">站樁微後座 | 頭:50 身:25</div></div>
+      <div class="shop-item" onclick="equipWeapon('operator')"><div class="name">Operator (間諜)</div><div class="stats">頭100/身100/腳85</div></div>
+    </div>
+  </div>
+  <button id="close-shop" onclick="closeShop()">關閉選單 (ESC)</button>
+</div>
+
+<!-- 遊戲提示與鎖定滑鼠 -->
+<div id="instructions">
+  <h2 style="color: #ff4655; margin-bottom: 10px;">點擊螢幕鎖定視角開始戰鬥</h2>
+  <p>WASD: 移動 (Shift 靜步移動 | Ctrl 蹲走比靜步更穩)</p>
+  <p>滑鼠左鍵: 開火 | 滑鼠右鍵: 開鏡 / 三連發</p>
+  <p>1/2/3: 切換武器 | <span style="color: #ffaa00;">G: 丟槍</span> | <span style="color: #00ffcc;">F: 安裝/拆除</span> | <span id="shop-key-tip" style="color: #00ffcc;">B: 商店/換槍</span></p>
+</div>
+
+<!-- HUD 介面 -->
+<div id="hud">
+  <div id="room-tag">單人模式</div>
+  <div id="crosshair"></div>
+  <div id="phase-announcement">BUY PHASE</div>
+  <div class="hud-top">
+    <span id="score-attacker" style="color: #ff4655;">0</span>
+    <span id="timer" style="color: #fff;">0:15</span>
+    <span id="score-defender" style="color: #00ffcc;">0</span>
+  </div>
+  
+  <div id="site-indicator">區域提示</div>
+  <div id="action-bar"><div id="action-text">正在進行...</div><div id="action-progress"></div></div>
+
+  <div class="hud-bottom-left">
+    <div style="font-size: 12px; color: #8b978f;">HP</div>
+    <div id="hp-val" style="font-size: 28px; font-weight: bold;">100</div>
+    <div id="hit-indicator">造成傷害！</div>
+  </div>
+
+  <div class="hud-weapons">
+    <div id="slot-1" class="weapon-slot">1 - 空</div>
+    <div id="slot-2" class="weapon-slot active">2 - Classic</div>
+    <div id="slot-3" class="weapon-slot">3 - Knife</div>
+    <div id="slot-4" class="weapon-slot" style="display: none;">4 - SPIKE</div> <!-- 預設隱藏 -->
+  </div>
+
+  <div class="hud-bottom-right">
+    <div style="font-size: 12px; color: #8b978f;" id="weapon-name-hud">Classic</div>
+    <div id="ammo-val" style="font-size: 28px; font-weight: bold; color: #ffaa00;">12 / 36</div>
+  </div>
+
+  <!-- 回合結束後的對戰報告面板 -->
+  <div id="combat-report-panel">
+    <div class="combat-report-header">
+      <span>對戰報告 (上一局)</span>
+    </div>
+    <div id="combat-report-list">
+      <!-- 動態填入資料 -->
+    </div>
+  </div>
+
+</div>
+
+<script>
+// --- 武器數據庫 ---
+const WEAPONS = {
+  vandal:   { name: 'Vandal',   type: 'primary',   mag: 25, reserve: 75,  
+              dmgHead: 100, dmgBody: 26, dmgLeg: 22, hasFalloff: false, fireRate: 585, auto: true, recoilBase: 0.022, spread: 0.008, isSilenced: false },
+  
+  phantom:  { name: 'Phantom',  type: 'primary',   mag: 30, reserve: 90,  
+              dmgHead: 100, dmgBody: 25, dmgLeg: 18, 
+              farHead: 90, farBody: 24, farLeg: 18, falloffDist: 20, hasFalloff: true, fireRate: 660, auto: true, recoilBase: 0.019, spread: 0.007, isSilenced: true },
+  
+  operator: { name: 'Operator', type: 'primary',   mag: 5,  reserve: 15,  
+              dmgHead: 100, dmgBody: 100, dmgLeg: 85, hasFalloff: false, fireRate: 45,  auto: false, recoilBase: 0.150, spread: 0.001, isSilenced: false },
+  
+  spectre:  { name: 'Spectre',  type: 'primary',   mag: 30, reserve: 90,  
+              dmgHead: 52,  dmgBody: 22,  dmgLeg: 18, hasFalloff: false, fireRate: 850, auto: true, recoilBase: 0.014, spread: 0.028, isSilenced: true }, 
+  
+  ares:     { name: 'Ares/Odin',type: 'primary',   mag: 50, reserve: 150, 
+              dmgHead: 50,  dmgBody: 25,  dmgLeg: 20, hasFalloff: false, fireRate: 850, auto: true, recoilBase: 0.012, spread: 0.012, isMinigun: true, isSilenced: false }, 
+  
+  bucky:    { name: 'Bucky',    type: 'primary',   mag: 5,  reserve: 15,  
+              dmgHead: 35,  dmgBody: 18,  dmgLeg: 15, hasFalloff: true, falloffDist: 10, fireRate: 70,  auto: false, isShotgun: true, pellets: 8, spread: 0.085, isSilenced: false },
+  
+  judge:    { name: 'Judge',    type: 'primary',   mag: 7,  reserve: 21,  
+              dmgHead: 38,  dmgBody: 22,  dmgLeg: 17, hasFalloff: true, falloffDist: 12, fireRate: 380, auto: true, isShotgun: true, pellets: 6, spread: 0.095, isSilenced: false }, 
+  
+  classic:  { name: 'Classic',  type: 'secondary', mag: 12, reserve: 36,  
+              dmgHead: 52,  dmgBody: 18,  dmgLeg: 15, 
+              farHead: 44, farBody: 15, farLeg: 13, falloffDist: 20, hasFalloff: true, fireRate: 400, auto: false, recoilBase: 0.010, spread: 0.012, isSilenced: false },
+  
+  ghost:    { name: 'Ghost',    type: 'secondary', mag: 15, reserve: 45,  
+              dmgHead: 70,  dmgBody: 20,  dmgLeg: 17, 
+              farHead: 58, farBody: 17, farLeg: 14, falloffDist: 20, hasFalloff: true, fireRate: 300, auto: false, recoilBase: 0.008, spread: 0.004, isSilenced: true },
+  
+  sheriff:  { name: 'Sheriff',  type: 'secondary', mag: 6,  reserve: 24,  
+              dmgHead: 100, dmgBody: 37, dmgLeg: 31, 
+              farHead: 97, farBody: 34, farLeg: 28, falloffDist: 30, hasFalloff: true, fireRate: 220, auto: false, recoilBase: 0.035, spread: 0.008, isSilenced: false },
+  
+  knife:    { name: 'Knife',    type: 'melee',     mag: 0,  reserve: 0,   
+              dmgHead: 30,  dmgBody: 30,  dmgLeg: 30, dmgBack: 100, fireRate: 150, auto: false, range: 3.5 }
+};
+
+// --- 音訊合成器 ---
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playSound(type, volume = 0.35, sourcePos = null, isSilenced = false) {
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  
+  if (sourcePos && camera) {
+    let dist = camera.position.distanceTo(new THREE.Vector3(sourcePos.x, sourcePos.y || 0, sourcePos.z));
+    
+    // 💡 依照你的需求設定各音效的最大距離
+    let maxHearDist = 40; // 其他預設音效距離
+    if (type === 'footstep' || type === 'jump_landing') {
+      maxHearDist = 40;   // 👟 腳步聲、落地聲改為 40 公尺
+    } else if (type === 'plant_beep' || type === 'defuse_beep_normal' || type === 'defuse_beep_high') {
+      maxHearDist = 45;   // 💣 下包/拆包聲改為 45 公尺
+    }
+
+    if (dist > maxHearDist) return;
+    volume = Math.max(0.01, volume * (1.0 - (dist / maxHearDist)));
+  }
+
+  const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+  osc.connect(gain); gain.connect(audioCtx.destination); const now = audioCtx.currentTime;
+
+  if (type === 'shoot') {
+    if (isSilenced) {
+      osc.type = 'sine'; osc.frequency.setValueAtTime(220, now); osc.frequency.exponentialRampToValueAtTime(40, now + 0.06);
+      gain.gain.setValueAtTime(volume * 0.4, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.06);
+    } else {
+      osc.type = 'sawtooth'; osc.frequency.setValueAtTime(500, now); osc.frequency.exponentialRampToValueAtTime(50, now + 0.1);
+      gain.gain.setValueAtTime(volume, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.1);
+    }
+    osc.start(now); osc.stop(now + 0.1);
+  } else if (type === 'bot_shoot') {
+    osc.type = 'square'; osc.frequency.setValueAtTime(400, now); osc.frequency.exponentialRampToValueAtTime(50, now + 0.1);
+    gain.gain.setValueAtTime(0.3, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.1); osc.start(now); osc.stop(now + 0.1);
+  } else if (type === 'knife') {
+    osc.type = 'sine'; osc.frequency.setValueAtTime(800, now); osc.frequency.exponentialRampToValueAtTime(100, now + 0.15);
+    gain.gain.setValueAtTime(0.3, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.15); osc.start(now); osc.stop(now + 0.15);
+  } else if (type === 'headshot') {
+    osc.type = 'sine'; osc.frequency.setValueAtTime(800, now); osc.frequency.setValueAtTime(1200, now + 0.05);
+    gain.gain.setValueAtTime(0.45, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.2); osc.start(now); osc.stop(now + 0.2);
+  } else if (type === 'reload') {
+    osc.type = 'triangle'; osc.frequency.setValueAtTime(200, now); osc.frequency.linearRampToValueAtTime(600, now + 0.2);
+    gain.gain.setValueAtTime(0.3, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.2); osc.start(now); osc.stop(now + 0.2);
+  } else if (type === 'drop') {
+    osc.type = 'sine'; osc.frequency.setValueAtTime(300, now); osc.frequency.linearRampToValueAtTime(120, now + 0.12);
+    gain.gain.setValueAtTime(0.3, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.12); osc.start(now); osc.stop(now + 0.12);
+  } else if (type === 'footstep') {
+    if (volume <= 0) return;
+    osc.type = 'triangle'; osc.frequency.setValueAtTime(100, now); osc.frequency.exponentialRampToValueAtTime(25, now + 0.07);
+    gain.gain.setValueAtTime(volume, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.07); osc.start(now); osc.stop(now + 0.07);
+  } else if (type === 'jump_landing') {
+    if (volume <= 0) return;
+    osc.type = 'sine'; osc.frequency.setValueAtTime(80, now); osc.frequency.exponentialRampToValueAtTime(20, now + 0.12);
+    gain.gain.setValueAtTime(volume, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.12); osc.start(now); osc.stop(now + 0.12);
+  } else if (type === 'plant_beep') {
+    osc.type = 'sine'; osc.frequency.setValueAtTime(1200, now); gain.gain.setValueAtTime(0.3, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.15); osc.start(now); osc.stop(now + 0.15);
+  } else if (type === 'defuse_beep_normal') {
+    osc.type = 'sine'; osc.frequency.setValueAtTime(880, now); gain.gain.setValueAtTime(0.3, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.15); osc.start(now); osc.stop(now + 0.15);
+  } else if (type === 'defuse_beep_high') {
+    osc.type = 'sine'; osc.frequency.setValueAtTime(1760, now); gain.gain.setValueAtTime(0.35, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.15); osc.start(now); osc.stop(now + 0.15);
+  } else if (type === 'explode') {
+    osc.type = 'sawtooth'; osc.frequency.setValueAtTime(120, now); osc.frequency.exponentialRampToValueAtTime(20, now + 0.8);
+    gain.gain.setValueAtTime(0.15, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.8); osc.start(now); osc.stop(now + 0.8);
+  } else if (type === 'barrier_drop') {
+    osc.type = 'square'; osc.frequency.setValueAtTime(300, now); osc.frequency.exponentialRampToValueAtTime(50, now + 0.5);
+    gain.gain.setValueAtTime(0.05, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.5); osc.start(now); osc.stop(now + 0.5);
+  }
+}
+
+// --- 全域變數與 3D 設定 ---
+
+// 紀錄上一局的傷害戰報與當前局的暫存傷害
+let lastRoundCombatReport = {};
+let currentRoundCombatData = {};
+
+let scene, camera, renderer, gunGroup;
+let myPlayer = {
+  id: 'player_local', x: 0, y: 1.6, z: 22, velocityY: 0, isGrounded: true, groundY: 0, crouchOffset: 1.6, jumpY: 0,
+  yaw: 0, pitch: 0, hp: 100, team: 'attacker', isDead: false, isInteracting: false, isCrouching: false,
+  isMoving: false, isWalking: false, recoilIndex: 0, stepTimer: 0,
+  inventory: { primary: null, secondary: 'classic', melee: 'knife' , spike: false},
+  ammo: { primary: { mag: 0, reserve: 0 }, secondary: { mag: 12, reserve: 36 } },
+  activeSlot: 'secondary', lastShotTime: 0, adsLevel: 0,
+  isReloading: false
+};
+
+let droppedWeapons = [];
+let otherPlayers = {}; let keys = {}; let isLocked = false; let isMultiplayerGame = false; let isHost = false; 
+let gameMode = 'standard'; 
+let gamePhase = 'buy'; let isRoundEnding = false; let hasSwappedSide = false;
+// 支援 10 人 (5v5) 的房間狀態
+let roomState = {
+  players: [] // 陣列格式: { id, name, team: 'attacker'/'defender', ready: boolean, isHost: boolean }
+};
+
+// 房主建立房間時初始化
+function createRoom() {
+  isHost = true; isMultiplayerGame = true; gameMode = 'standard'; 
+  let playerName = document.getElementById('player-name-input').value.trim() || 'Agent_1';
+  
+  roomState.players = [{
+    id: 'host',
+    name: playerName,
+    team: 'attacker',
+    ready: true, // 房主預設準備
+    isHost: true
+  }];
+
+  const roomId = generateShortRoomId(); peer = new Peer(roomId);
+  peer.on('open', (id) => { 
+    document.getElementById('main-menu').style.display = 'none'; 
+    document.getElementById('lobby-menu').style.display = 'flex'; 
+    document.getElementById('lobby-code-display').innerText = `ROOM: ${id}`; 
+    updateLobbyUI(); 
+  });
+  peer.on('connection', (c) => { conn = c; setupLobbyConnection(); });
+}
+
+// 加入房間時
+function joinRoom() {
+  const roomId = document.getElementById('room-code-input').value.trim().toUpperCase(); 
+  if (roomId.length !== 5) return;
+  
+  document.getElementById('menu-status').innerText = '正在連線...'; 
+  isHost = false; 
+  isMultiplayerGame = true; 
+  gameMode = 'standard'; 
+  peer = new Peer();
+  
+  peer.on('open', () => { 
+    conn = peer.connect(roomId); 
+    conn.on('open', () => { 
+      document.getElementById('main-menu').style.display = 'none'; 
+      document.getElementById('lobby-menu').style.display = 'flex'; 
+      document.getElementById('lobby-code-display').innerText = `ROOM: ${roomId}`; 
+      
+      // 🎯 確保這裡確實抓取了輸入框的暱稱，而不是寫死的字串！
+      let playerName = document.getElementById('player-name-input').value.trim() || 'Agent';
+      myPlayer.name = playerName;
+      myPlayer.team = 'defender'; // 預設加入防守方
+
+      conn.send({ type: 'lobby_join', name: playerName, team: 'defender' }); 
+      setupLobbyConnection(); 
+    }); 
+  });
+}
+
+// 切換陣營
+function switchTeam(targetTeam) {
+  let playerName = document.getElementById('player-name-input').value.trim() || 'Agent';
+  myPlayer.team = targetTeam;
+
+  if (isMultiplayerGame) {
+    if (isHost) {
+      let p = roomState.players.find(x => x.id === 'host');
+      if (p) { p.team = targetTeam; p.name = playerName; }
+      broadcastLobbyState();
+    } else {
+      conn.send({ type: 'lobby_change_team', name: playerName, team: targetTeam });
+    }
+  }
+}
+
+// 點擊準備按鈕
+function toggleReady() {
+  if (isHost) {
+    // 房主切換自己的準備狀態
+    let p = roomState.players.find(x => x.id === 'host' || x.isHost);
+    if (p) {
+      p.ready = !p.ready;
+      broadcastLobbyState();
+    }
+  } else {
+    // 網頁客戶端（非房主）切換自己的準備狀態
+    // 透過 conn.peer 找到自己在 roomState.players 中的記錄
+    let p = roomState.players.find(x => x.id === conn.peer);
+    if (!p) {
+      // 如果還沒被同步進來，先找第一個非房主的玩家
+      p = roomState.players.find(x => !x.isHost);
+    }
+    
+    if (p) {
+      p.ready = !p.ready;
+      if (conn && conn.open) {
+        conn.send({ type: 'lobby_toggle_ready', ready: p.ready });
+      }
+      updateLobbyUI();
+    }
+  }
+}
+
+
+
+
+
+// 房主在指定陣營新增一個電腦 Bot
+function addBotToTeam(team) {
+  let teamCount = roomState.players.filter(p => p.team === team).length;
+  if (teamCount >= 5) {
+    alert("該陣營已滿 (最多 5 人)！");
+    return;
+  }
+
+  let botUniqueId = 'bot_' + Math.random().toString(36).substr(2, 4);
+  let botName = `Bot_${Math.floor(Math.random() * 900) + 100}`;
+
+  roomState.players.push({
+    id: botUniqueId,
+    name: botName,
+    team: team,
+    ready: true, // 電腦預設自動準備
+    isHost: false,
+    isBot: true
+  });
+
+  syncAndBroadcastLobby();
+}
+
+// 踢出指定玩家或電腦
+function removePlayerSlot(targetId) {
+  if (!isHost) return;
+  
+  // 找出被踢的玩家連線並發送踢出通知
+  // (因為在 PeerJS 中房主只有一個 conn，如果是 1v1 或多人對戰，可以透過該玩家的 conn 發送)
+  if (conn && conn.peer === targetId && conn.open) {
+    conn.send({ type: 'get_kicked' });
+  }
+
+  roomState.players = roomState.players.filter(p => p.id !== targetId);
+  syncAndBroadcastLobby();
+}
+
+// 同步與廣播大廳狀態
+function syncAndBroadcastLobby() {
+  if (isHost) {
+    broadcastLobbyState();
+  } else {
+    let myPlayerObj = roomState.players.find(x => x.id === peer.id);
+    if (conn && conn.open) {
+      conn.send({ type: 'lobby_change_team', team: myPlayerObj.team, name: myPlayerObj.name });
+    }
+  }
+  updateLobbyUI();
+}
+
+function broadcastLobbyState() { 
+  if (isHost && conn && conn.open) {
+    conn.send({ type: 'lobby_update', state: roomState }); 
+  }
+  updateLobbyUI(); 
+}
+
+function requestStartGame() {
+  if (!isHost) return;
+
+  let attackers = roomState.players.filter(p => p.team === 'attacker');
+  let defenders = roomState.players.filter(p => p.team === 'defender');
+  let totalPlayers = roomState.players.length;
+  let allReady = roomState.players.every(p => p.ready);
+
+  if (totalPlayers === 0) {
+    alert("⚠️ 房間內沒有任何玩家！");
+    return;
+  }
+  if (!allReady) {
+    alert("⚠️ 無法開始：還有玩家尚未點擊準備！");
+    return;
+  }
+
+  // 🎯 檢查是否其中一邊沒人（單邊空缺）
+  if (attackers.length === 0 || defenders.length === 0) {
+    // 顯示特戰風格確認視窗
+    let emptyTeamName = attackers.length === 0 ? "進攻方 (Attackers)" : "防守方 (Defenders)";
+    document.getElementById('warning-modal-text').innerText = 
+      `注意：${emptyTeamName} 目前沒有任何成員！這將會是一場單邊跑圖或不平衡對局。確定要開始嗎？`;
+    document.getElementById('team-warning-modal').style.display = 'flex';
+    return; // 攔截，等待玩家點擊確定
+  }
+
+  // 兩邊都有人，直接開始
+  executeStartGame();
+}
+
+// 點擊確認視窗的「強制開始」
+function confirmStartGame() {
+  document.getElementById('team-warning-modal').style.display = 'none';
+  executeStartGame();
+}
+
+// 點擊確認視窗的「取消」
+function closeTeamWarning() {
+  document.getElementById('team-warning-modal').style.display = 'none';
+}
+
+// 實際發送開始訊號並進入遊戲
+function executeStartGame() {
+  if (conn && conn.open) {
+    conn.send({ type: 'start_game' });
+  }
+  startGameFromLobby();
+}
+
+let roundTimer = 15; let scoreAttacker = 0; let scoreDefender = 0; let timerInterval = null;
+let muzzleLight, muzzleMesh;
+let spike = { 
+  planted: false, x: 0, y: 0, z: 0, mesh: null, detonateTimer: 45, interval: null,
+  defuseProgress: 0, isHalfWay: false, rangeRingMesh: null,
+  carrier: null,         // 記錄目前是誰帶著包 (例如 'host', 'client', 'bot_1')
+  isDroppedOnGround: true, // 記綠包是否掉在地上
+  dropMesh: null         // 地上包的 3D 模型
+};
+let sites = { A: { x: -35, z: -25, radius: 8 }, B: { x: 35, z: -25, radius: 8 } };
+let walls = []; let collisionMeshes = []; let barrierMeshes = []; let playerMeshes = [];
+
+// 訓練場傷害累計追蹤
+let rangeDummyDamage = 0;
+let rangeDummyLastHitTime = 0;
+
+// --- 碰撞檢測 ---
+function isColliding(pX, pZ, w) {
+  if (w.isActive === false) return false;
+  if (w.angle !== undefined) {
+    let dx = pX - w.x; let dz = pZ - w.z;
+    let localX = dx * Math.cos(w.angle) - dz * Math.sin(w.angle);
+    let localZ = dx * Math.sin(w.angle) + dz * Math.cos(w.angle);
+    return (localX > -w.halfW - 0.5 && localX < w.halfW + 0.5 && localZ > -w.halfD - 0.5 && localZ < w.halfD + 0.5);
+  } else {
+    return (pX > w.minX - 0.5 && pX < w.maxX + 0.5 && pZ > w.minZ - 0.5 && pZ < w.maxZ + 0.5);
+  }
+}
+
+// ==========================================
+// Bot 導航路徑圖
+// ==========================================
+// --- 根據你的新地圖精準規劃的導航節點 (完全避開牆壁與掩體) ---
+const navNodes = [
+  // --- 進攻方區域 (下方 Spawn) ---
+  { id: 0, x: 0, z: 42 },    // 0: 進攻方復活點中路
+  { id: 1, x: -48, z: 48 },  // 1: A 點進攻正面入口
+  { id: 2, x: 38, z: 30 },   // 2: B 點進攻正面入口
+
+  // --- 中路區域 ---
+  { id: 10, x: 16, z: 23 },   // 10: 進攻方中右推進點
+  { id: 11, x: -16, z: 17 },  // 11: 進攻方中左
+  { id: 12, x: 6, z: 0 },    // 12: 中路中央掩體旁通道
+  { id: 13, x: -4, z: -8 },  // 13: 防守方中路出口
+  { id: 27, x: -3, z: 4 },    // 27: 中路中央
+
+  // --- A 點側 (左側 / 藍圈區域，提供雙路線隨機選擇) ---
+  { id: 16, x: -38, z: 28 }, // 16: A 點外側大路通道口
+  { id: 17, x: -48, z: 14 }, // 17: A 點內側小路 / 繞過中央大牆的轉角
+  { id: 18, x: -42, z: -10 },// 18: A 點爆破點外圍
+  { id: 5,  x: -40, z: -25 },// 5:  A 點中心 (站點安包區)
+  { id: 28, x: -30, z: -8 },    // 28: A 點內側小路 / 繞過中央大牆的轉角 (中間點)
+
+  // --- B 點側 (右側 / 橘圈區域，提供雙路線隨機選擇) ---
+  { id: 19, x: 47, z: 12 },  // 19: B 點外側大路通道口
+  { id: 21, x: 38, z: 1 }, // 21: B 點爆破點外圍
+  { id: 6,  x: 38, z: -28 }, // 6:  B 點中心 (站點安包區)
+
+  // --- 防守方區域 (上方 CT Spawn) ---
+  { id: 22, x: 0, z: -45 },  // 22: 防守方復活點中路
+  { id: 23, x: -16, z: -44 },// 23: 防守方 A 點後方支援點
+  { id: 24, x: 35, z: -40 } ,  // 24: 防守方 B 點後方支援點
+  { id: 25, x: 49, z: -49 } ,  // 25: 防守方 B 點後方支援點
+  { id: 26, x: 45, z: -20 }   // 26: 防守方 B 點左側出口支援點
+];
+
+// --- 對應的雙向鄰接連線表 (確保路路相通、絕不卡死) ---
+const navEdges = {
+  // 進攻方主幹連線
+  0: [1, 2, 10,11,16],
+  1: [0, 17],
+  2: [0, 19],
+
+  // 中路連線
+  10: [0, 11, 27],
+  11: [0,10, 27],
+  12: [13, 19, 21, 27],
+  13: [12, 22, 28],
+  27: [10, 11, 12],
+
+  // A 點側網格 
+  16: [0,1, 17],
+  17: [16, 28],
+  18: [5, 28],
+  5:  [18, 23],
+  28: [13, 17, 18],
+
+  // B 點側網格 
+  19: [2, 12, 21],
+  21: [6, 12, 19, 26],
+  6:  [21, 24, 26],
+
+  // 防守方支援連線
+  22: [13, 23, 24, 25],
+  23: [5, 22],
+  24: [6, 22],
+  25: [21, 22, 26],
+  26: [6, 25],
+};
+
+function getNearestNode(x, z) {
+  let minDist = Infinity; let nearest = 0;
+  navNodes.forEach(n => { let d = Math.hypot(n.x - x, n.z - z); if (d < minDist) { minDist = d; nearest = n.id; } });
+  return nearest;
+}
+
+function findPath(start, target) {
+  if (start === target) return [];
+  let queue = [[start]]; let visited = new Set([start]);
+  while(queue.length > 0) {
+    let path = queue.shift(); let curr = path[path.length - 1];
+    if (curr === target) return path.slice(1);
+    for (let next of navEdges[curr]) {
+      if (!visited.has(next)) { visited.add(next); queue.push([...path, next]); }
+    }
+  }
+  return [];
+}
+
+// ==========================================
+// 🎯 進攻方（T）戰術導航函式庫（已加入防呆保護）
+// ==========================================
+
+// 1. 【Rush A 或 Rush B】直接以最快速度直線衝點
+function getAttackerRushPath(bot, site) {
+  console.log("電腦選擇直接 Rush " + site + " 點");
+  let startNode = getNearestNode(bot.x, bot.z);
+  let targetNode = (site === 'A') ? 5 : 6; // A點中心(5) 或 B點中心(6)
+  let path = findPath(startNode, targetNode);
+  return (path && path.length > 0) ? path : [targetNode]; // 確保至少有節點可走
+}
+
+// 2. 【慢打 / 等 20 秒再出發】先到中路或進攻口附近集合/蹲點
+function getAttackerSlowPlayPath(bot) {
+  console.log("電腦選擇慢打策略");
+  let startNode = 0; // 強制從節點 0 出發，避免在家撞牆
+  let gatheringNodes = [10, 11, 27]; // 中路集合點
+  let targetNode = gatheringNodes[Math.floor(Math.random() * gatheringNodes.length)];
+  
+  let path = findPath(startNode, targetNode);
+  return (path && path.length > 0) ? path : [targetNode];
+}
+
+// 3. 【先控 A / B 大路】先走到外側大路通道口 (A大: 16, B大: 19) 進行控場
+function getAttackerControlLongPath(bot, site) {
+  console.log("電腦選擇先控制 " + site + " 大路口");
+  let startNode = getNearestNode(bot.x, bot.z);
+  let longNode = (site === 'A') ? 16 : 19; // A大(16) 或 B大(19) 口
+  
+  let path = findPath(startNode, longNode);
+  
+  // 💡 防呆保護：如果尋路失敗，自動改為直接 Rush 路線
+  if (!path || path.length === 0) {
+      console.warn("⚠️ 控大路路徑尋找失敗，自動改為直接 Rush 路線");
+      return getAttackerRushPath(bot, site);
+  }
+  
+  return path;
+}
+
+// 4. 【中路轉 A/B 小進點】從中路打進去，然後轉 A小(28) 或 B小(12) 夾擊
+function getAttackerMidSplitPath(bot, site) {
+  console.log("電腦選擇中路轉 " + site + " 小進點");
+  let startNode = getNearestNode(bot.x, bot.z);
+  let midNode = 27; // 中路核心點
+  let splitNode = (site === 'A') ? 28 : 12; // A小 或 B小
+  let siteNode = (site === 'A') ? 5 : 6;
+  
+  let leg1 = findPath(startNode, midNode);
+  let leg2 = findPath(midNode, splitNode);
+  let leg3 = findPath(splitNode, siteNode);
+  
+  // 💡 防呆保護：如果任何一段拼接失敗（回傳 null 或空），直接改用簡單的 Rush 路線，避免程式當機
+  if (!leg1 || leg1.length === 0 || !leg2 || leg2.length === 0 || !leg3 || leg3.length === 0) {
+      console.warn("⚠️ 中路夾擊路徑組合失敗，自動改為直接 Rush 路線");
+      return getAttackerRushPath(bot, site);
+  }
+  
+  return leg1.concat(leg2.slice(1), leg3.slice(1));
+}
+
+// ==========================================
+// 💡 進攻方總指揮分派函式（加上 currentStrategy 設定確保安包）
+// ==========================================
+function getAttackerPathByStrategy(bot) {
+  switch (bot.strategy) {
+    case 'rushA':
+      bot.currentStrategy = 'site_A'; 
+      return getAttackerRushPath(bot, 'A');
+    case 'rushB':
+      bot.currentStrategy = 'site_B';
+      return getAttackerRushPath(bot, 'B');
+    case 'slowPlay':
+      bot.currentStrategy = 'mid_push'; // 標記正在中路慢打
+      return getAttackerSlowPlayPath(bot);
+    case 'controlA':
+      bot.currentStrategy = 'controlling_long_A'; // 標記正在控 A 大路
+      return getAttackerControlLongPath(bot, 'A');
+    case 'controlB':
+      bot.currentStrategy = 'controlling_long_B'; // 標記正在控 B 大路
+      return getAttackerControlLongPath(bot, 'B');
+    case 'midSplitA':
+      bot.currentStrategy = 'site_A'; 
+      return getAttackerMidSplitPath(bot, 'A');
+    case 'midSplitB':
+      bot.currentStrategy = 'site_B'; 
+      return getAttackerMidSplitPath(bot, 'B');
+    default:
+      bot.currentStrategy = 'site_A';
+      return getAttackerRushPath(bot, 'A');
+  }
+}
+
+function pickRandomStrategy(bot) {
+    let roll = Math.random();
+    if (roll < 0.30) {
+        bot.currentStrategy = 'mid_push';
+        bot.strategy = 'slowPlay';
+    } else if (roll < 0.65) {
+        bot.currentStrategy = 'site_A';
+        bot.strategy = Math.random() < 0.5 ? 'rushA' : 'midSplitA';
+    } else {
+        bot.currentStrategy = 'site_B';
+        bot.strategy = Math.random() < 0.5 ? 'rushB' : 'midSplitB';
+    }
+    bot.hasChosenRoundStrategy = true;
+    bot.path = getAttackerPathByStrategy(bot);
+}
+
+
+function getWaypointPath(waypoints, fallbackStart, fallbackTarget) {
+    let fullPath = [];
+    for (let i = 0; i < waypoints.length - 1; i++) {
+        let fromNode = waypoints[i];
+        let toNode = waypoints[i+1];
+
+        if (fromNode === toNode) continue;
+
+        let segment = findPath(fromNode, toNode);
+        
+        // 💡 如果這一段斷路，不要直接放棄！我們印出警告，並改用最基本的直線/鄰近導航補救
+        if (!segment || segment.length === 0) {
+            console.warn(`❌ [尋路斷點] 節點 ${fromNode} ➔ ${toNode} 斷路！正在強制使用直接導航補接...`);
+            segment = findPath(fromNode, toNode) || [toNode]; // 嘗試補救
+        }
+        
+        if (fullPath.length > 0) {
+            segment.shift();
+        }
+        fullPath = fullPath.concat(segment);
+    }
+
+    // 💡 最終保底：如果組裝出來的總路徑小於 2 個點，代表整條戰術經由點幾乎全斷了，直接強制直奔目標點！
+    if (!fullPath || fullPath.length < 2) {
+        console.warn(`⚠️ [路徑過短保底] 經由點串接失敗，強制直奔目標點 [${fallbackTarget}]`);
+        fullPath = findPath(fallbackStart, fallbackTarget) || [fallbackTarget];
+    }
+    
+    return fullPath;
+}
+
+function findPathToA(bot) {
+    let startNode = getNearestNode(bot.x, bot.z);
+    let targetSiteNode = 5; // A點中心節點
+    
+    if (spike.planted) {
+        let shortestPath = findPath(startNode, targetSiteNode);
+        if (shortestPath && shortestPath.length <= 2) {
+            return shortestPath;
+        }
+    }
+    
+    let choice = Math.random();
+    let tacticalWaypoints = [];
+    
+    // 💡 確保所有經由點的順序都是從「防守方/全圖各處」順著走向 A 點 (節點 5)
+    if (choice < 0.33) {
+        tacticalWaypoints = [22, 23, targetSiteNode];
+        console.warn("電腦選擇22 ➔ 23 ➔ 5");
+    } else if (choice < 0.66) {
+        tacticalWaypoints = [13, 28, targetSiteNode];
+        console.warn("電腦選擇13 ➔ 28 ➔ 5");
+    } else {
+        tacticalWaypoints = [13, 12, 0 , 16, targetSiteNode]; // 順暢的大繞後主幹
+        console.warn("電腦選擇13 ➔ 12 ➔ 0 ➔ 16 ➔ 5"); 
+    }
+    
+    let waypoints = [startNode, ...tacticalWaypoints];
+    return getWaypointPath(waypoints, startNode, targetSiteNode);
+}
+
+function findPathToB(bot) {
+    let startNode = getNearestNode(bot.x, bot.z);
+    let targetSiteNode = 6; // B點中心節點
+    
+    if (spike.planted) {
+        let shortestPath = findPath(startNode, targetSiteNode);
+        if (shortestPath && shortestPath.length <= 2) {
+            return shortestPath;
+        }
+    }
+    
+    let choice = Math.random();
+    let tacticalWaypoints = [];
+    
+    // 💡 確保所有經由點的順序都是從「防守方/全圖各處」順著走向 B 點 (節點 6)
+    if (choice < 0.25) {
+        tacticalWaypoints = [22, 24, targetSiteNode];
+        console.warn("電腦選擇22 ➔ 24 ➔ 6");
+    } else if (choice < 0.50) {
+        tacticalWaypoints = [22, 25, 26, targetSiteNode];
+        console.warn("電腦選擇22 ➔ 25 ➔ 26 ➔ 6");  
+    } else if (choice < 0.75) {
+        tacticalWaypoints = [13, 12, targetSiteNode];
+        console.warn("電腦選擇13 ➔ 12 ➔ 6");
+    } else {
+        tacticalWaypoints = [13, 12, 0, 21, targetSiteNode]; // 順暢的 B 點大繞後主幹
+        console.warn("電腦選擇13 ➔ 12 ➔ 0 ➔ 21 ➔ 6"); 
+    }
+    
+    let waypoints = [startNode, ...tacticalWaypoints];
+    return getWaypointPath(waypoints, startNode, targetSiteNode);
+}
+
+let peer = null, conn = null; let mouseIsDown = false;
+
+// [網路連線區塊]
+function generateShortRoomId() { return Math.random().toString(36).substring(2, 7).toUpperCase(); }
+// 房主建立房間時初始化
+function createRoom() {
+  isHost = true; 
+  isMultiplayerGame = true; 
+  gameMode = 'standard'; 
+  
+  let playerName = document.getElementById('player-name-input').value.trim() || 'Agent_1';
+  
+  // 初始化 5v5 陣列，將房主放入進攻方
+  roomState.players = [{
+    id: 'host',
+    name: playerName,
+    team: 'attacker',
+    slotIndex: 0, // 🎯 這裡一定要加上位置編號，自己才會顯示在畫面上！
+    ready: true, // 房主預設準備
+    isHost: true
+  }];
+
+  const roomId = generateShortRoomId(); 
+  peer = new Peer(roomId);
+  
+  peer.on('open', (id) => { 
+    document.getElementById('main-menu').style.display = 'none'; 
+    document.getElementById('lobby-menu').style.display = 'flex'; 
+    document.getElementById('lobby-code-display').innerText = `ROOM: ${id}`; 
+    updateLobbyUI(); 
+  });
+  
+  peer.on('connection', (c) => { 
+    conn = c; 
+    setupLobbyConnection(); 
+  });
+}
+
+function setupLobbyConnection() {
+  conn.on('data', (data) => {
+    // 💡 5v5 多人大廳的房主接收與廣播邏輯
+    if (data.type === 'lobby_join' && isHost) { 
+      let existing = roomState.players.find(x => x.id === conn.peer);
+      if (!existing) {
+        // 🎯 自動幫加入的客戶端尋找防守方第一個空位編號 (0 到 4)
+        let defs = roomState.players.filter(p => p.team === 'defender');
+        let freeSlot = 0;
+        for (let i = 0; i < 5; i++) {
+          if (!defs.some(p => p.slotIndex === i)) { freeSlot = i; break; }
+        }
+
+        roomState.players.push({ 
+          id: conn.peer, 
+          name: data.name, 
+          team: 'defender', 
+          slotIndex: freeSlot, // 賦予防守方空位編號
+          ready: false, 
+          isHost: false 
+        });
+      }
+      broadcastLobbyState(); 
+    }
+    else if (data.type === 'lobby_update') { 
+      roomState = data.state; 
+
+      // 🎯 確保客戶端本地的玩家清單與房主同步時，名字也有被更新
+      roomState.players.forEach(p => {
+        if (otherPlayers[p.id]) {
+          otherPlayers[p.id].name = p.name;
+        }
+      });
+
+      // 🎯 核心防呆：檢查最新的大廳清單裡，還有沒有「我（peer.id）」的記錄？
+      let myId = peer.id;
+      let amIStillInRoom = roomState.players.some(p => p.id === myId);
+      
+      if (!amIStillInRoom) {
+        // 如果清單中已經沒有我了，代表我被房主踢了！
+        kickToMainMenu("⚠️ 你已被房主踢出房間");
+        return;
+      }
+
+      updateLobbyUI(); 
+    }
+
+else if (data.type === 'get_kicked') {
+      kickToMainMenu("⚠️ 你已被房主踢出房間");
+    }
+
+    else if (data.type === 'lobby_toggle_ready' && isHost) { 
+      let p = roomState.players.find(x => x.id === conn.peer);
+      if (p) p.ready = data.ready;
+      broadcastLobbyState(); 
+    }
+    else if (data.type === 'lobby_change_team' && isHost) { 
+      let p = roomState.players.find(x => x.id === conn.peer);
+      if (p) {
+        p.name = data.name;
+        p.team = data.team;
+        
+        // 🎯 只要有傳過來格子編號，直接指定過去，絕對不囉嗦、不亂跑！
+        if (data.slotIndex !== undefined) {
+          p.slotIndex = data.slotIndex;
+        }
+      }
+      // 立即廣播最新狀態給所有人
+      broadcastLobbyState(); 
+    }
+
+    else if (data.type === 'start_game') { 
+      startGameFromLobby(); 
+    
+      // 🎯 關鍵補強：從房主的 roomState.players 裡面抓取所有人最新的暱稱，填入 otherPlayers 內！
+      if (roomState && roomState.players) {
+        roomState.players.forEach(p => {
+          if (p.id !== myPlayer.id && otherPlayers[p.id]) {
+            otherPlayers[p.id].name = p.name;
+          }
+        });
+      }
+    
+    }
+    else if (data.type === 'player_update') { 
+      handleInGameData(data); 
+    
+      // 🎯 確保房主端能同步更新該玩家的最新暱稱
+      let p = roomState.players.find(x => x.id === data.id);
+      if (p && data.name) {
+        p.name = data.name;
+      }
+    
+    }
+    else if (data.type === 'shoot_effect') { 
+      if(data.weapon !== 'knife') {
+        let dir = data.dir ? new THREE.Vector3(data.dir.x, data.dir.y, data.dir.z) : new THREE.Vector3(-Math.sin(data.yaw), 0, -Math.cos(data.yaw));
+        createTracerLine(data.x, data.y, data.z, dir, false, data.dist); 
+      }
+    }
+    
+    else if (data.type === 'hit_player') { 
+      if (data.hitX !== undefined) createHitEffect(data.hitX, data.hitY, data.hitZ, data.isHeadshot); 
+      
+      // 🎯 確保把 data.attackerName 完整傳遞進去！
+      applyDamage(data.targetId, data.damage, data.isHeadshot, data.weapon, data.attackerId, data.attackerName); 
+    }
+    else if (data.type === 'plant_spike') { plantSpike(data.x, data.z, false); }
+    else if (data.type === 'defuse_spike') { defuseSpike(false); }
+    
+    else if (data.type === 'spike_pickup') {
+      spike.isDroppedOnGround = false;
+      spike.carrier = data.carrier;
+      if (spike.dropMesh) {
+        scene.remove(spike.dropMesh);
+        spike.dropMesh = null;
+      }
+    }
+    else if (data.type === 'spike_drop') {
+      spike.isDroppedOnGround = true;
+      spike.carrier = null;
+      spike.x = data.x;
+      spike.z = data.z;
+
+      if (spike.dropMesh) {
+        scene.remove(spike.dropMesh);
+        spike.dropMesh = null;
+      }
+      const sGeo = new THREE.BoxGeometry(0.4, 0.3, 0.5);
+      const sMat = new THREE.MeshLambertMaterial({ color: 0xff4655, emissive: 0xaa0011 });
+      spike.dropMesh = new THREE.Mesh(sGeo, sMat);
+      spike.dropMesh.position.set(spike.x, 0.15, spike.z);
+      scene.add(spike.dropMesh);
+    }
+
+    else if (data.type === 'play_sound') { playSound(data.soundType, data.vol !== undefined ? data.vol : 0.35, data.pos, data.isSilenced); }
+    else if (data.type === 'drop_weapon') { spawnDroppedWeapon(data.id, data.weaponId, data.x, data.z, data.mag, data.reserve); }
+    else if (data.type === 'pickup_weapon') { removeDroppedWeapon(data.id); }
+    else if (data.type === 'sync_game_state') { 
+      let prevPhase = gamePhase;
+      roundTimer = data.timer; gamePhase = data.phase; scoreAttacker = data.scoreAttacker; scoreDefender = data.scoreDefender; 
+      if (prevPhase !== gamePhase) updatePhaseVisuals();
+      if (!spike.planted) updateTimerUI(roundTimer); updateScoreUI(); 
+    }
+    else if (data.type === 'round_reset') { 
+      scoreAttacker = data.scoreAttacker; 
+      scoreDefender = data.scoreDefender; 
+      updateScoreUI(); 
+      
+      let total = scoreAttacker + scoreDefender;
+      let isOT = (scoreAttacker >= 12 && scoreDefender >= 12);
+      
+      if ((!isOT && total === 12 && !hasSwappedSide) || (isOT)) {
+          hasSwappedSide = true;
+          myPlayer.team = myPlayer.team === 'attacker' ? 'defender' : 'attacker';
+          Object.values(otherPlayers).forEach(p => { 
+            p.team = p.team === 'attacker' ? 'defender' : 'attacker'; 
+          });
+      }
+
+      finalizeCombatReport();
+      resetRound(); 
+    }
+    else if (data.type === 'match_end') { 
+      scoreAttacker = data.scoreAttacker; scoreDefender = data.scoreDefender; updateScoreUI(); 
+      alert(`🏆 比賽結束！${data.winner === 'attacker' ? '進攻方' : '防守方'} 贏得對戰！\n最終比分: ${scoreAttacker} - ${scoreDefender}`); 
+      resetMatch(); 
+    }
+  });
+}
+
+// 🏠 被踢出房間或房間關閉時，導回主選單
+function kickToMainMenu(message = "你已被房主移出房間") {
+  alert(message);
+  
+  // 關閉 Peer 連線
+  if (peer) { peer.destroy(); peer = null; }
+  if (conn) { conn.close(); conn = null; }
+  
+  // 切換畫面顯示
+  document.getElementById('lobby-menu').style.display = 'none';
+  document.getElementById('hud').style.display = 'none';
+  document.getElementById('instructions').style.display = 'none';
+  document.getElementById('main-menu').style.display = 'flex';
+  
+  // 恢復預設狀態
+  isMultiplayerGame = false;
+  isHost = false;
+  roomState.players = [];
+  document.getElementById('menu-status').innerText = '';
+}
+
+function broadcastLobbyState() { if (isHost && conn && conn.open) conn.send({ type: 'lobby_update', state: roomState }); updateLobbyUI(); }
+
+function updateLobbyUI() {
+  const attackerDiv = document.getElementById('attacker-slots');
+  const defenderDiv = document.getElementById('defender-slots');
+  attackerDiv.innerHTML = '';
+  defenderDiv.innerHTML = '';
+
+  let attackers = roomState.players.filter(p => p.team === 'attacker');
+  let defenders = roomState.players.filter(p => p.team === 'defender');
+
+  let myId = isHost ? 'host' : peer.id;
+
+  // 1. 產生進攻方固定的 5 個格子 (0 到 4)
+  for (let i = 0; i < 5; i++) {
+    let slotItem = attackers.find(p => p.slotIndex === i);
+    if (slotItem) {
+      let isMe = (slotItem.id === myId);
+      attackerDiv.innerHTML += `
+        <div style="background: rgba(255,70,85,0.2); border: 1px solid ${isMe ? '#00ffcc' : '#ff4655'}; padding: 8px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+          <span>${slotItem.name} ${slotItem.isHost ? '👑' : (slotItem.isBot ? '🤖' : '')} ${isMe ? '(我)' : ''}</span>
+          <div style="display: flex; gap: 5px; align-items: center;">
+            <span style="font-size: 11px; color: ${slotItem.ready ? '#00ffcc' : '#aaa'}">${slotItem.ready ? '已準備' : '未準備'}</span>
+            ${isHost && !slotItem.isHost ? `<button onclick="removePlayerSlot('${slotItem.id}')" style="background: #ff4655; border: none; color: #fff; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 10px;">✕</button>` : ''}
+          </div>
+        </div>`;
+    } else {
+      let actionHtml = isHost 
+        ? `<div style="display: flex; gap: 4px;">
+             <button onclick="moveToSpecificSlot('attacker', ${i})" style="background: #36404a; color: #fff; border: none; padding: 3px 6px; border-radius: 3px; cursor: pointer; font-size: 10px;">加入</button>
+             <button onclick="addBotToSpecificSlot('attacker', ${i})" style="background: #ff4655; color: #fff; border: none; padding: 3px 6px; border-radius: 3px; cursor: pointer; font-size: 10px; font-weight: bold;">+電腦</button>
+           </div>`
+        : `<button onclick="moveToSpecificSlot('attacker', ${i})" style="background: #36404a; color: #fff; border: none; padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 11px;">加入此位</button>`;
+
+      attackerDiv.innerHTML += `
+        <div style="background: rgba(255,255,255,0.03); border: 1px dashed rgba(255,70,85,0.3); padding: 8px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #777;">
+          <span>空位 (進攻方 ${i + 1})</span>
+          ${actionHtml}
+        </div>`;
+    }
+  }
+
+  // 2. 產生防守方固定的 5 個格子 (0 到 4)
+  for (let i = 0; i < 5; i++) {
+    let slotItem = defenders.find(p => p.slotIndex === i);
+    if (slotItem) {
+      let isMe = (slotItem.id === myId);
+      defenderDiv.innerHTML += `
+        <div style="background: rgba(54,159,255,0.2); border: 1px solid ${isMe ? '#00ffcc' : '#369fff'}; padding: 8px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; font-size: 13px;">
+          <span>${slotItem.name} ${slotItem.isHost ? '👑' : (slotItem.isBot ? '🤖' : '')} ${isMe ? '(我)' : ''}</span>
+          <div style="display: flex; gap: 5px; align-items: center;">
+            <span style="font-size: 11px; color: ${slotItem.ready ? '#00ffcc' : '#aaa'}">${slotItem.ready ? '已準備' : '未準備'}</span>
+            ${isHost && !slotItem.isHost ? `<button onclick="removePlayerSlot('${slotItem.id}')" style="background: #ff4655; border: none; color: #fff; padding: 2px 6px; border-radius: 3px; cursor: pointer; font-size: 10px;">✕</button>` : ''}
+          </div>
+        </div>`;
+    } else {
+      let actionHtml = isHost 
+        ? `<div style="display: flex; gap: 4px;">
+             <button onclick="moveToSpecificSlot('defender', ${i})" style="background: #36404a; color: #fff; border: none; padding: 3px 6px; border-radius: 3px; cursor: pointer; font-size: 10px;">加入</button>
+             <button onclick="addBotToSpecificSlot('defender', ${i})" style="background: #369fff; color: #fff; border: none; padding: 3px 6px; border-radius: 3px; cursor: pointer; font-size: 10px; font-weight: bold;">+電腦</button>
+           </div>`
+        : `<button onclick="moveToSpecificSlot('defender', ${i})" style="background: #36404a; color: #fff; border: none; padding: 3px 8px; border-radius: 3px; cursor: pointer; font-size: 11px;">加入此位</button>`;
+
+      defenderDiv.innerHTML += `
+        <div style="background: rgba(255,255,255,0.03); border: 1px dashed rgba(54,159,255,0.3); padding: 8px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #777;">
+          <span>空位 (防守方 ${i + 1})</span>
+          ${actionHtml}
+        </div>`;
+    }
+  }
+
+  // 3. 按鈕權限與狀態控制 (支援單人跑圖與不平衡開局)
+  const startBtn = document.getElementById('start-btn');
+  const readyBtn = document.getElementById('ready-btn');
+  let totalPlayers = roomState.players.length;
+  let allReady = roomState.players.every(p => p.ready);
+
+  if (isHost) {
+    startBtn.style.display = 'inline-block';
+    readyBtn.innerText = roomState.players.find(x => x.isHost)?.ready ? '取消準備' : '準備';
+    
+    // 只要房內有人且全部準備好，房主就可以按開始（單人跑圖也支援）
+    startBtn.disabled = !(totalPlayers > 0 && allReady);
+    
+    document.getElementById('room-status-tip').innerText = (totalPlayers > 0) 
+      ? (allReady ? '隨時可以開始遊戲或跑圖！' : '等待所有成員點擊準備...') 
+      : '⚠️ 房間內目前沒有任何人';
+  } else {
+    startBtn.style.display = 'none';
+    let clientPlayer = roomState.players.find(x => x.id === myId);
+    let isClientReady = clientPlayer ? clientPlayer.ready : false;
+    readyBtn.innerText = isClientReady ? '取消準備' : '準備';
+    readyBtn.className = isClientReady ? 'btn-success' : 'btn-secondary';
+    document.getElementById('room-status-tip').innerText = isClientReady ? '已準備，等待房主開始遊戲...' : '請點擊空位加入陣營並點擊準備！';
+  }
+}
+
+// 玩家（包含房主與其他真人）點擊某個具體空位進行移動
+// 玩家點擊某個具體空位進行移動
+function moveToSpecificSlot(targetTeam, slotIndex) {
+  let myId = isHost ? 'host' : peer.id;
+  let myPlayerObj = roomState.players.find(x => x.id === myId);
+
+  if (!myPlayerObj) {
+    let playerName = document.getElementById('player-name-input').value.trim() || (isHost ? 'Agent_1' : 'Agent_2');
+    myPlayerObj = {
+      id: myId,
+      name: playerName,
+      team: targetTeam,
+      slotIndex: slotIndex,
+      ready: false,
+      isHost: isHost,
+      isBot: false
+    };
+    roomState.players.push(myPlayerObj);
+  } else {
+    myPlayerObj.team = targetTeam;
+    myPlayerObj.slotIndex = slotIndex; // 確實綁定該位置編號
+    myPlayerObj.ready = false;         // 換位置後取消準備
+  }
+
+  // 🎯 關鍵：如果是非主機端，一定要把 slotIndex 透過 conn.send 傳給房主！
+  if (!isHost && conn && conn.open) {
+    conn.send({ 
+      type: 'lobby_change_team', 
+      name: myPlayerObj.name, 
+      team: targetTeam, 
+      slotIndex: slotIndex // 帶著你點擊的格子編號過去
+    });
+  }
+
+  syncAndBroadcastLobby();
+}
+
+// 房主在指定的空格編號上新增一個電腦 Bot
+function addBotToSpecificSlot(team, slotIndex) {
+  if (!isHost) return;
+
+  // 檢查該位置是否已經被佔據
+  let occupied = roomState.players.some(p => p.team === team && p.slotIndex === slotIndex);
+  if (occupied) return;
+
+  let botUniqueId = 'bot_' + Math.random().toString(36).substr(2, 4);
+  let botName = `Bot_${Math.floor(Math.random() * 900) + 100}`;
+
+  roomState.players.push({
+    id: botUniqueId,
+    name: botName,
+    team: team,
+    slotIndex: slotIndex, // 綁定特定空格
+    ready: true, // 電腦預設準備
+    isHost: false,
+    isBot: true
+  });
+
+  syncAndBroadcastLobby();
+}
+
+function onTeamChange() { const team = document.getElementById('my-team-select').value; if (isHost) { roomState.host.team = team; broadcastLobbyState(); } else { roomState.client.team = team; if (conn && conn.open) conn.send({ type: 'lobby_change_team', team: team }); } }
+
+function startGameFromLobby() {
+  document.getElementById('lobby-menu').style.display = 'none'; 
+  document.getElementById('hud').style.display = 'block'; 
+  document.getElementById('instructions').style.display = 'block';
+  
+  myPlayer.id = isHost ? 'host' : (peer && peer.id ? peer.id : 'client_' + Math.random().toString(36).substr(2, 4));
+  
+  myPlayer.team = isHost ? 
+    (roomState.players.find(x => x.isHost)?.team || 'attacker') : 
+    (roomState.players.find(x => x.id === peer.id)?.team || 'defender'); 
+  
+  myPlayer.z = myPlayer.team === 'attacker' ? 45 : -45;
+  
+  document.getElementById('room-tag').innerText = `房間對戰 [${myPlayer.team === 'attacker' ? '進攻方' : '防守方'}]`;
+  
+  initEngine(); 
+
+  // 🎯 正式進入遊戲時，自動把大廳裡所有標記為 isBot 的機器人在 3D 場上生成！
+  otherPlayers = {}; 
+  roomState.players.forEach(p => {
+    if (p.isBot) {
+      spawnBotInGame(p.id, p.name, p.team);
+    }
+  });
+
+  // 初始化開局地上的 Spike
+  spike.planted = false;
+  spike.detonateTimer = 45;
+  spike.carrier = null;
+  spike.isDroppedOnGround = true;
+  spike.x = 0;
+  spike.z = 35; 
+  
+  if (spike.dropMesh) { scene.remove(spike.dropMesh); spike.dropMesh = null; }
+
+  const spikeGeo = new THREE.BoxGeometry(0.4, 0.3, 0.5);
+  const spikeMat = new THREE.MeshLambertMaterial({ color: 0xff4655, emissive: 0xaa0011 });
+  spike.dropMesh = new THREE.Mesh(spikeGeo, spikeMat);
+  spike.dropMesh.position.set(spike.x, 0.15, spike.z);
+  scene.add(spike.dropMesh);
+
+  startTimer(); 
+  startRenderLoop();
+  
+  // 定期同步玩家位置
+  setInterval(() => { 
+    if (conn && conn.open) {
+      conn.send({ 
+        type: 'player_update', 
+        id: myPlayer.id, 
+        name: myPlayer.name,
+        x: myPlayer.x, 
+        y: myPlayer.y, 
+        z: myPlayer.z, 
+        yaw: myPlayer.yaw, 
+        team: myPlayer.team, 
+        hp: myPlayer.hp, 
+        isDead: myPlayer.isDead, 
+        isCrouch: myPlayer.isCrouching, 
+        isJump: !myPlayer.isGrounded 
+      }); 
+    }
+  }, 33);
+}
+
+// 輔助函式：在遊戲中生成指定 ID 與隊伍的 Bot
+function spawnBotInGame(botId, botName, team) {
+  const mesh = createCharacterMesh(team, botId); 
+  const startZ = team === 'attacker' ? 45 : -45;
+  mesh.position.set(0, 0, startZ); 
+  scene.add(mesh);
+  
+  otherPlayers[botId] = {  
+      x: 0, z: startZ, hp: 100, team: team, mesh: mesh, isDead: false, 
+      name: botName,
+      lastShot: 0, path: [], yaw: 0, isDefusing: false, 
+      isNavigatingToSpike: false, isPlanting: false, plantTimer: 0, currentStrategy: null,
+      defuseProgress: 0, isHalfWay: false, tacticalRole: 'default',
+      fakeDefuseTimer: 0, isFakeDefusing: false, fakeHoldTimer: 0,
+      avoidTimer: 0, avoidDir: 1
+  };
+}
+
+function startSingleplayer() {
+  isMultiplayerGame = false; gameMode = 'standard'; myPlayer.id = 'player_local'; myPlayer.team = document.getElementById('single-team-select').value; 
+  myPlayer.z = myPlayer.team === 'attacker' ? 45 : -45; myPlayer.x = 0; myPlayer.y = 1.6;
+  
+  document.getElementById('main-menu').style.display = 'none'; document.getElementById('hud').style.display = 'block'; document.getElementById('instructions').style.display = 'block';
+  document.getElementById('room-tag').innerText = `單人模式 [${myPlayer.team === 'attacker' ? '進攻方' : '防守方'}]`;
+  
+  initEngine();
+
+  // ==================== 新增：開局時在進攻方前方地面生成 Spike 模型 ====================
+  spike.planted = false;
+  spike.carrier = null;
+  spike.isDroppedOnGround = true;
+  spike.x = 0;
+  spike.z = 35; // 放在進攻方前方地板
+  if (spike.dropMesh) { scene.remove(spike.dropMesh); spike.dropMesh = null; }
+  
+  const spikeGeo = new THREE.BoxGeometry(0.4, 0.3, 0.5);
+  const spikeMat = new THREE.MeshLambertMaterial({ color: 0xff4655, emissive: 0xaa0011 });
+  spike.dropMesh = new THREE.Mesh(spikeGeo, spikeMat);
+  spike.dropMesh.position.set(spike.x, 0.15, spike.z);
+  scene.add(spike.dropMesh);
+  
+   createBot(); startTimer(); startRenderLoop();
+}
+
+// --- 啟動 50m 訓練場模式 ---
+function startRangeMode() {
+  isMultiplayerGame = false; gameMode = 'range'; myPlayer.id = 'player_local'; myPlayer.team = 'attacker';
+  myPlayer.x = 0; myPlayer.y = 1.6; myPlayer.z = 22; 
+  
+  document.getElementById('main-menu').style.display = 'none'; document.getElementById('hud').style.display = 'block'; document.getElementById('instructions').style.display = 'block';
+  document.getElementById('room-tag').innerText = `🎯 50m 訓練場 (按 B 隨時換槍)`;
+  document.getElementById('shop-key-tip').innerText = 'B: 換槍選單';
+  document.getElementById('timer').style.display = 'none';
+  document.getElementById('score-attacker').style.display = 'none';
+  document.getElementById('score-defender').style.display = 'none';
+
+  initRangeEngine(); startRenderLoop();
+}
+
+// --- 初始化 3D 引擎 ---
+function initEngine() {
+  scene = new THREE.Scene(); scene.background = new THREE.Color(0x87ceeb); scene.fog = new THREE.FogExp2(0x87ceeb, 0.008);
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setSize(window.innerWidth, window.innerHeight); renderer.shadowMap.enabled = true;
+  document.getElementById('canvas-container').appendChild(renderer.domElement);
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); scene.add(ambientLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.8); dirLight.position.set(20, 60, 20); dirLight.castShadow = true; scene.add(dirLight);
+
+  buildMap(); 
+
+  gunGroup = new THREE.Group(); camera.add(gunGroup); scene.add(camera);
+  muzzleLight = new THREE.PointLight(0xffaa00, 0, 4); muzzleLight.position.set(0.2, -0.18, -0.65); gunGroup.add(muzzleLight);
+  const muzzleGeo = new THREE.ConeGeometry(0.06, 0.2, 6); muzzleGeo.rotateX(-Math.PI / 2);
+  muzzleMesh = new THREE.Mesh(muzzleGeo, new THREE.MeshBasicMaterial({ color: 0xffdd55, transparent: true, opacity: 0 }));
+  muzzleMesh.position.set(0.2, -0.18, -0.65); gunGroup.add(muzzleMesh);
+  
+  updateGunModel('classic'); updateHUDWeapon();
+
+  window.addEventListener('resize', onWindowResize);
+  document.addEventListener('keydown', handleKeyDown); document.addEventListener('keyup', handleKeyUp);
+  document.addEventListener('mousemove', handleMouseMove); 
+  
+  document.addEventListener('mousedown', e => { 
+    if (!isLocked) return;
+    if (e.button === 0) {
+      mouseIsDown = true; 
+      const activeW = WEAPONS[myPlayer.activeSlot === 'melee' ? 'knife' : myPlayer.inventory[myPlayer.activeSlot]];
+      if (activeW && !activeW.auto) tryShoot(performance.now());
+    }
+    if (e.button === 2) handleRightClick(performance.now());
+  });
+  document.addEventListener('mouseup', e => { if (e.button === 0) mouseIsDown = false; });
+  document.addEventListener('contextmenu', e => e.preventDefault()); 
+  
+  const instructions = document.getElementById('instructions');
+  instructions.addEventListener('click', () => { 
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if(document.getElementById('shop-menu').style.display !== 'flex') document.body.requestPointerLock(); 
+  });
+  document.addEventListener('pointerlockchange', () => { isLocked = document.pointerLockElement === document.body; instructions.style.display = isLocked ? 'none' : 'block'; });
+}
+
+// --- 初始化 50m 訓練場場景 ---
+function initRangeEngine() {
+  scene = new THREE.Scene(); scene.background = new THREE.Color(0x1a2332); scene.fog = new THREE.FogExp2(0x1a2332, 0.005);
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setSize(window.innerWidth, window.innerHeight); renderer.shadowMap.enabled = true;
+  document.getElementById('canvas-container').appendChild(renderer.domElement);
+  
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); scene.add(ambientLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.9); dirLight.position.set(0, 40, 0); scene.add(dirLight);
+
+  walls = []; collisionMeshes = []; playerMeshes = [];
+
+  const roomLength = 50; const roomWidth = 10; const roomHeight = 6;
+  
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(roomWidth, roomLength), new THREE.MeshLambertMaterial({ color: 0x222831 }));
+  floor.rotation.x = -Math.PI / 2; floor.position.set(0, 0, 0); scene.add(floor);
+
+  const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(roomWidth, roomLength), new THREE.MeshLambertMaterial({ color: 0x11161d }));
+  ceiling.rotation.x = Math.PI / 2; ceiling.position.set(0, roomHeight, 0); scene.add(ceiling);
+
+  function createRangeWall(x, z, w, d, h) {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color: 0x2e3846 }));
+    mesh.position.set(x, h/2, z); scene.add(mesh);
+    walls.push({ minX: x - w/2, maxX: x + w/2, minZ: z - d/2, maxZ: z + d/2, h: h, isActive: true });
+    collisionMeshes.push(mesh);
+  }
+  createRangeWall(roomWidth/2, 0, 1, roomLength, roomHeight);   
+  createRangeWall(-roomWidth/2, 0, 1, roomLength, roomHeight);  
+  createRangeWall(0, roomLength/2, roomWidth, 1, roomHeight);   
+  createRangeWall(0, -roomLength/2, roomWidth, 1, roomHeight);  
+
+  const dummyMesh = createCharacterMesh('defender', 'range_dummy');
+  dummyMesh.position.set(0, 0, -24);
+  scene.add(dummyMesh);
+  otherPlayers['range_dummy'] = { x: 0, z: -24, hp: 999999, team: 'defender', mesh: dummyMesh, isDead: false, yaw: 0 };
+
+  myPlayer.inventory.primary = 'vandal';
+  myPlayer.ammo.primary = { mag: 25, reserve: 75 };
+  myPlayer.activeSlot = 'primary';
+
+  gunGroup = new THREE.Group(); camera.add(gunGroup); scene.add(camera);
+  muzzleLight = new THREE.PointLight(0xffaa00, 0, 4); muzzleLight.position.set(0.2, -0.18, -0.65); gunGroup.add(muzzleLight);
+  const muzzleGeo = new THREE.ConeGeometry(0.06, 0.2, 6); muzzleGeo.rotateX(-Math.PI / 2);
+  muzzleMesh = new THREE.Mesh(muzzleGeo, new THREE.MeshBasicMaterial({ color: 0xffdd55, transparent: true, opacity: 0 }));
+  muzzleMesh.position.set(0.2, -0.18, -0.65); gunGroup.add(muzzleMesh);
+  
+  updateGunModel('vandal'); updateHUDWeapon();
+
+  window.addEventListener('resize', onWindowResize);
+  document.addEventListener('keydown', handleKeyDown); document.addEventListener('keyup', handleKeyUp);
+  document.addEventListener('mousemove', handleMouseMove); 
+  
+  document.addEventListener('mousedown', e => { 
+    if (!isLocked) return;
+    if (e.button === 0) {
+      mouseIsDown = true; 
+      const activeW = WEAPONS[myPlayer.activeSlot === 'melee' ? 'knife' : myPlayer.inventory[myPlayer.activeSlot]];
+      if (activeW && !activeW.auto) tryShoot(performance.now());
+    }
+    if (e.button === 2) handleRightClick(performance.now());
+  });
+  document.addEventListener('mouseup', e => { if (e.button === 0) mouseIsDown = false; });
+  document.addEventListener('contextmenu', e => e.preventDefault()); 
+  
+  const instructions = document.getElementById('instructions');
+  instructions.addEventListener('click', () => { 
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if(document.getElementById('shop-menu').style.display !== 'flex') document.body.requestPointerLock(); 
+  });
+  document.addEventListener('pointerlockchange', () => { isLocked = document.pointerLockElement === document.body; instructions.style.display = isLocked ? 'none' : 'block'; });
+}
+
+function updateGunModel(weaponId) {
+  for(let i = gunGroup.children.length - 1; i >= 0; i--) { let c = gunGroup.children[i]; if(c.name === 'gunPart') gunGroup.remove(c); }
+  
+  // 🔥 關鍵：因為 spike_item 不在 WEAPONS 資料庫裡，必須寫在最前面攔截！
+  if (weaponId === 'spike_item') {
+    const spikeHandMat = new THREE.MeshLambertMaterial({ color: 0xff4655, emissive: 0xaa0011 });
+    const spikeHandMesh = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.2, 0.35), spikeHandMat);
+    spikeHandMesh.name = 'gunPart';
+    spikeHandMesh.position.set(0.2, -0.18, -0.3);
+    gunGroup.add(spikeHandMesh);
+    return;
+  }
+
+  const w = WEAPONS[weaponId];
+  const mat = new THREE.MeshLambertMaterial({ color: w.isSilenced ? 0x111318 : 0x1d212c });
+  
+  if (w.type === 'melee') {
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.1, 0.3), new THREE.MeshLambertMaterial({ color: 0x8899aa }));
+    blade.name = 'gunPart'; blade.position.set(0.2, -0.18, -0.2); gunGroup.add(blade);
+  } else if (w.type === 'secondary') {
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, w.isSilenced ? 0.35 : 0.25), mat);
+    body.name = 'gunPart'; body.position.set(0.2, -0.18, -0.3); gunGroup.add(body);
+  } else {
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, w.isShotgun ? 0.45 : 0.5), mat);
+    body.name = 'gunPart'; body.position.set(0.2, -0.18, -0.35); gunGroup.add(body);
+    if (weaponId === 'operator') {
+      const scope = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.05, 0.2), new THREE.MeshLambertMaterial({ color: 0x000000 }));
+      scope.name = 'gunPart'; scope.position.set(0.2, -0.1, -0.35); gunGroup.add(scope);
+    }
+  }
+}
+
+function createCharacterMesh(team, id) {
+  const group = new THREE.Group();
+  const isAttacker = team === 'attacker'; const mainColor = isAttacker ? 0xff4655 : 0x00d2ff; const armorColor = isAttacker ? 0x2a0810 : 0x081f2a;
+  
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.42, 0.42), new THREE.MeshLambertMaterial({ color: armorColor })); head.position.y = 1.5; head.userData = { id: id, part: 'head' }; group.add(head);
+  
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.75, 0.38), new THREE.MeshLambertMaterial({ color: mainColor })); body.position.y = 0.95; body.userData = { id: id, part: 'body' }; group.add(body);
+  
+  // 🌀 背面辨識標記（螺旋標記）
+  const canvas = document.createElement('canvas');
+  canvas.width = 64; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffcc00'; ctx.fillRect(0, 0, 64, 64); // 黃色底
+  ctx.fillStyle = '#331100'; ctx.beginPath(); ctx.arc(32, 32, 20, 0, Math.PI * 2); ctx.fill(); // 外圈
+  ctx.fillStyle = '#ffcc00'; ctx.beginPath(); ctx.arc(32, 32, 10, 0, Math.PI * 2); ctx.fill(); // 內圈同心圓
+  ctx.fillStyle = '#ff4655'; ctx.beginPath(); ctx.arc(32, 32, 4, 0, Math.PI * 2); ctx.fill();  // 核心點
+  
+  const spiralTexture = new THREE.CanvasTexture(canvas);
+  const backTagMat = new THREE.MeshBasicMaterial({ map: spiralTexture });
+  const backTag = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.22), backTagMat);
+  
+  // 💡 修正：Y 軸改為 0.75（對齊身體正中央），Z 軸維持 0.21（貼在背後）
+  backTag.position.set(0, 0.75, 0.21); 
+  backTag.rotation.y = 0; 
+  // 💡 關鍵修正：加上 userData，讓子彈打到這個標記時，被判定為打中身體 (body)！
+  backTag.userData = { id: id, part: 'body' };
+  group.add(backTag);
+
+  const lShoulder = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.22, 0.3), new THREE.MeshLambertMaterial({ color: armorColor })); lShoulder.position.set(-0.4, 1.15, 0); lShoulder.userData = { id: id, part: 'arm' };
+  const rShoulder = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.22, 0.3), new THREE.MeshLambertMaterial({ color: armorColor })); rShoulder.position.set(0.4, 1.15, 0); rShoulder.userData = { id: id, part: 'arm' };
+  group.add(lShoulder); group.add(rShoulder);
+  
+  const lLeg = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.6, 0.26), new THREE.MeshLambertMaterial({ color: 0x15181c })); lLeg.position.set(-0.18, 0.3, 0); lLeg.userData = { id: id, part: 'leg' };
+  const rLeg = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.6, 0.26), new THREE.MeshLambertMaterial({ color: 0x15181c })); rLeg.position.set(0.18, 0.3, 0); rLeg.userData = { id: id, part: 'leg' };
+  group.add(lLeg); group.add(rLeg);
+  
+  playerMeshes.push(group);
+  return group;
+}
+// --- 地圖構造 ---
+function buildMap() {
+  walls = []; collisionMeshes = []; barrierMeshes = []; playerMeshes = [];
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshLambertMaterial({ color: 0x8b7e66 })); floor.rotation.x = -Math.PI / 2; scene.add(floor);
+
+  function createWall(x, z, w, d, h = 6, color = 0x454b52) {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color: color }));
+    mesh.position.set(x, h/2, z); scene.add(mesh); 
+    walls.push({ minX: x - w/2, maxX: x + w/2, minZ: z - d/2, maxZ: z + d/2, h: h, isActive: true }); 
+    collisionMeshes.push(mesh); return mesh;
+  }
+  
+  function createBarrier(x, z, w, d) {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, 8, d), new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.4 }));
+    mesh.position.set(x, 4, z); scene.add(mesh); barrierMeshes.push(mesh);
+    let wData = { minX: x - w/2, maxX: x + w/2, minZ: z - d/2, maxZ: z + d/2, h: 8, isBarrier: true, isActive: true };
+    walls.push(wData); collisionMeshes.push(mesh); return wData;
+  }
+
+  createWall(0, -50, 100, 2); createWall(0, 50, 100, 2);createWall(-50, 0, 2, 100); createWall(50, 0, 2, 100);// 四周大牆
+
+  createWall(-25, 20, 16, 20); 
+  createWall(-23, -22, 20, 24); // 防守方右手大牆壁
+  createWall(-8, -33, 10, 2);// 防守方中路右手小牆壁
+  createWall(-14, -38, 2, 8);// 防守方右手小牆壁
+  createWall(-37, -45, 26, 10);// 防守方最右大牆壁
+
+  createWall(25, 20, 16, 20);  
+  createWall(25, -24, 16, 28); // 防守方左手大牆壁
+
+
+  createWall(40, -38, 6, 8, 6, 0x3d434a); // B 點-CT L牆1（靠近防守方側）
+  createWall(34, -43, 18, 2, 6, 0x3d434a);// B 點-CT L牆2（靠近防守方側）
+  createWall(44, -30, 2, 8, 6, 0x3d434a);// B 點-CT L牆3（靠近防守方側）
+  createWall(46, 0, 10, 2, 6, 0x3d434a);// B 點中間小牆
+  createWall(39.5, 13.5, 6, 2, 6, 0x3d434a);// B 點小牆（靠近攻擊方側）
+
+  // 左側大牆（切兩半，在靠近防守方的那側開通道）A小
+  //createWall(-15, -11, 4, 2, 6, 0x3d434a);   // 靠近防守方側（短，範圍約從 -12 到 -6）
+  createWall(-15, 2.5, 4, 17, 6, 0x3d434a); // 靠近攻擊方側（長，範圍約從 -3 到 12）
+
+  // 中路右側大牆（切兩半，在靠近攻擊方的那側開通道）B小
+  createWall(15, -6.5, 4, 11, 6, 0x3d434a); // 防守方側（較長）
+  createWall(15, 7, 4, 6, 6, 0x3d434a);    // 攻擊方側（較短，留下通道）    
+
+  createWall(-7, -5, 14, 2, 6, 0x3d434a); // 中間左小牆
+  createWall(9, 5, 8, 2, 6, 0x3d434a);   // 中間右小牆
+  
+  
+  createWall(0, 28, 24, 2, 6, 0x3d434a);// 進攻方前大牆（寬度改為 24，置中於 X=0）
+  createWall(12, 26, 2, 6, 6, 0x3d434a);// 右側的短直牆（形成轉角，讓玩家需要先往前再往左繞）
+  createWall(47, 40.5, 20, 20, 6, 0x3d434a);// 進攻方右大牆
+  createWall(-26, 38, 2, 8, 6, 0x3d434a);// 進攻方左L牆
+  createWall(-32, 43, 14, 2, 6, 0x3d434a);// 進攻方左L牆
+  
+  createWall(-47, -5, 12, 2, 6, 0x3d434a);// 靠著左側最外牆 ($X = -50$)、靠近防守方側的 A 點小掩體牆
+  createWall(-41, 15, 9, 2, 6, 0x3d434a);//左側前檔進攻方2
+  //createWall(-47, 28, 6, 2, 6, 0x3d434a);//左側前檔進攻方1
+
+  createWall(-11, 22, 7, 5, 2.5, 0x8b5a2b);// 進攻方中路小掩體牆
+  createWall(6, -22, 14, 2, 2.5, 0x8b5a2b);// 防守方中路小掩體牆
+  createWall(-26, 0, 5, 10, 2.5, 0x8b5a2b);//A小掩體牆
+  //createWall(-24, 12, 18, 2.5, 6, 0x3d434a);//中路彎道牆
+  //createWall(24, 12, 18, 2.5, 6, 0x3d434a); //中路彎道牆
+
+  createWall(-35, -25, 4, 4, 2.5, 0x8b5a2b); createWall(-38, -20, 2, 2, 2.5, 0x8b5a2b); 
+  createWall(35, -25, 4, 4, 2.5, 0x8b5a2b);  createWall(35, 15, 3, 3, 2.5, 0x8b5a2b);   
+  createWall(-35, 15, 3, 3, 2.5, 0x8b5a2b);  // 小掩體
+  createWall(-48, -32, 4, 4, 2.5, 0x8b5a2b); // A點右小掩體（防守方視角）
+  createWall(43, -3, 4, 4, 2.5, 0x8b5a2b);  //B點中小掩體  
+  createWall(42, 29, 3, 3, 2.5, 0x8b5a2b); //B點大牆後右小掩體（進攻方視角）
+
+  createBarrier(0, 30, 100, 1);  // 進攻方屏障
+  createBarrier(0, -30, 100, 1); // 防守方屏障
+
+  //節點測試
+  // 🔍 快速視覺化所有導航節點（改為高度 8 的紅色柱子）
+  /*navNodes.forEach(node => {
+    // 參數：頂端半徑, 底端半徑, 高度(8), 圓周切片數
+    const geometry = new THREE.CylinderGeometry(0.4, 0.4, 8, 8);
+    const material = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // 紅色柱子
+    const marker = new THREE.Mesh(geometry, material);
+    
+    // 高度為 8，Y 設在 4.0 剛好立在地面上
+    marker.position.set(node.x, 4.0, node.z); 
+    scene.add(marker);
+  });*/
+
+  const siteAMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc, side: THREE.DoubleSide, transparent: true, opacity: 0.25 });
+  const siteAMesh = new THREE.Mesh(new THREE.RingGeometry(0.1, sites.A.radius, 32), siteAMat);
+  siteAMesh.rotation.x = -Math.PI / 2; siteAMesh.position.set(sites.A.x, 0.01, sites.A.z); scene.add(siteAMesh);
+
+  const siteBMat = new THREE.MeshBasicMaterial({ color: 0xff4655, side: THREE.DoubleSide, transparent: true, opacity: 0.25 });
+  const siteBMesh = new THREE.Mesh(new THREE.RingGeometry(0.1, sites.B.radius, 32), siteBMat);
+  siteBMesh.rotation.x = -Math.PI / 2; siteBMesh.position.set(sites.B.x, 0.01, sites.B.z); scene.add(siteBMesh);
+}
+
+function updatePhaseVisuals() {
+  if (gameMode === 'range') return;
+  const ann = document.getElementById('phase-announcement');
+  if (gamePhase === 'buy') {
+    ann.innerText = 'BUY PHASE'; ann.style.display = 'block'; ann.style.color = '#00ffcc';
+    barrierMeshes.forEach(m => m.visible = true);
+    walls.forEach(w => { if (w.isBarrier) w.isActive = true; }); 
+    barrierMeshes.forEach(m => { if(!collisionMeshes.includes(m)) collisionMeshes.push(m); }); 
+  } else {
+    ann.innerText = 'FIGHT!'; ann.style.color = '#ff4655';
+    setTimeout(() => { ann.style.display = 'none'; }, 2000);
+    playSound('barrier_drop');
+    barrierMeshes.forEach(m => m.visible = false);
+    walls.forEach(w => { if (w.isBarrier) w.isActive = false; }); 
+    collisionMeshes = collisionMeshes.filter(m => !barrierMeshes.includes(m)); 
+
+    // 🔄 關鍵：無論是房主還是客戶端，只要一進入 FIGHT 階段，就自動隱藏戰報與商店選單！
+    document.getElementById('combat-report-panel').style.display = 'none';
+    document.getElementById('shop-menu').style.display = 'none';
+  }
+}
+
+// ==========================================
+// 丟槍與拾取系統
+// ==========================================
+function dropCurrentWeapon() {
+  if (gameMode === 'range' || myPlayer.isDead || myPlayer.isReloading || myPlayer.isInteracting) return;
+  const slot = myPlayer.activeSlot;
+  if (slot === 'melee') return;
+  const wId = myPlayer.inventory[slot];
+  if (!wId) return;
+
+  const mag = myPlayer.ammo[slot].mag;
+  const reserve = myPlayer.ammo[slot].reserve;
+
+  let dropX = myPlayer.x - Math.sin(myPlayer.yaw) * 1.6;
+  let dropZ = myPlayer.z - Math.cos(myPlayer.yaw) * 1.6;
+  for (let w of walls) {
+    if (isColliding(dropX, dropZ, w)) { dropX = myPlayer.x; dropZ = myPlayer.z; break; }
+  }
+
+  const dropId = 'drop_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+  spawnDroppedWeapon(dropId, wId, dropX, dropZ, mag, reserve);
+
+  if (isMultiplayerGame && conn && conn.open) {
+    conn.send({ type: 'drop_weapon', id: dropId, weaponId: wId, x: dropX, z: dropZ, mag: mag, reserve: reserve });
+  }
+
+  myPlayer.inventory[slot] = null;
+  myPlayer.ammo[slot] = { mag: 0, reserve: 0 };
+  myPlayer.recoilIndex = 0;
+  playSound('drop');
+
+  if (myPlayer.inventory.primary) switchWeapon(1);
+  else if (myPlayer.inventory.secondary) switchWeapon(2);
+  else switchWeapon(3);
+  updateSlotUI();
+}
+
+function spawnDroppedWeapon(id, weaponId, x, z, mag, reserve) {
+  const group = new THREE.Group();
+  const isPrimary = WEAPONS[weaponId].type === 'primary';
+  const mat = new THREE.MeshLambertMaterial({ color: isPrimary ? 0x2b3240 : 0x454d59 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(isPrimary ? 0.14 : 0.1, 0.14, isPrimary ? 0.65 : 0.32), mat);
+  group.add(body);
+
+  const ringMat = new THREE.MeshBasicMaterial({ color: isPrimary ? 0x00ffcc : 0xffaa00, side: THREE.DoubleSide, transparent: true, opacity: 0.5 });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.42, 16), ringMat);
+  ring.rotation.x = -Math.PI / 2; ring.position.y = -0.08; group.add(ring);
+
+  group.position.set(x, 0.15, z);
+  scene.add(group);
+  droppedWeapons.push({ id, weaponId, x, z, mag, reserve, mesh: group, dropTime: performance.now() });
+}
+
+function removeDroppedWeapon(id) {
+  const idx = droppedWeapons.findIndex(d => d.id === id);
+  if (idx !== -1) { scene.remove(droppedWeapons[idx].mesh); droppedWeapons.splice(idx, 1); }
+}
+
+function pickupDroppedWeapon(dWeapon) {
+  const w = WEAPONS[dWeapon.weaponId];
+  const slot = w.type;
+
+  if (myPlayer.inventory[slot]) {
+    const oldWId = myPlayer.inventory[slot];
+    const oldMag = myPlayer.ammo[slot].mag;
+    const oldRes = myPlayer.ammo[slot].reserve;
+    const dropId = 'drop_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+    spawnDroppedWeapon(dropId, oldWId, myPlayer.x, myPlayer.z, oldMag, oldRes);
+    if (isMultiplayerGame && conn && conn.open) {
+      conn.send({ type: 'drop_weapon', id: dropId, weaponId: oldWId, x: myPlayer.x, z: myPlayer.z, mag: oldMag, reserve: oldRes });
+    }
+  }
+
+  myPlayer.inventory[slot] = dWeapon.weaponId;
+  myPlayer.ammo[slot] = { mag: dWeapon.mag, reserve: dWeapon.reserve };
+
+  removeDroppedWeapon(dWeapon.id);
+  if (isMultiplayerGame && conn && conn.open) conn.send({ type: 'pickup_weapon', id: dWeapon.id });
+
+  switchWeapon(slot === 'primary' ? 1 : 2);
+  playSound('reload');
+}
+
+function updateSlotUI() {
+  let t = myPlayer.activeSlot;
+  document.getElementById('slot-1').className = `weapon-slot ${t === 'primary' ? 'active' : ''}`;
+  document.getElementById('slot-1').innerText = `1 - ${myPlayer.inventory.primary ? WEAPONS[myPlayer.inventory.primary].name : '空'}`;
+  document.getElementById('slot-2').className = `weapon-slot ${t === 'secondary' ? 'active' : ''}`;
+  document.getElementById('slot-2').innerText = `2 - ${myPlayer.inventory.secondary ? WEAPONS[myPlayer.inventory.secondary].name : '空'}`;
+  document.getElementById('slot-3').className = `weapon-slot ${t === 'melee' ? 'active' : ''}`;
+
+  // 第 4 格 Spike 槽
+  const slot4 = document.getElementById('slot-4');
+  if (myPlayer.inventory.spike) {
+    slot4.style.display = 'block';
+    slot4.className = `weapon-slot ${t === 'spike' ? 'active' : ''}`;
+    slot4.innerText = `4 - SPIKE`;
+  } else {
+    slot4.style.display = 'none';
+  }
+
+}
+
+// --- 商店與選單切換 ---
+function toggleShop() {
+  if (gameMode !== 'range' && (gamePhase !== 'buy' || myPlayer.isDead)) return;
+  const shop = document.getElementById('shop-menu');
+  if (shop.style.display === 'flex') { closeShop(); } else { document.exitPointerLock(); shop.style.display = 'flex'; }
+}
+function closeShop() { document.getElementById('shop-menu').style.display = 'none'; document.body.requestPointerLock(); }
+function equipWeapon(weaponId) {
+  const w = WEAPONS[weaponId];
+  if (myPlayer.inventory[w.type]) {
+    const oldWId = myPlayer.inventory[w.type];
+    const oldMag = myPlayer.ammo[w.type].mag;
+    const oldRes = myPlayer.ammo[w.type].reserve;
+    if (gameMode !== 'range') {
+      const dropId = 'drop_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+      spawnDroppedWeapon(dropId, oldWId, myPlayer.x, myPlayer.z, oldMag, oldRes);
+      if (isMultiplayerGame && conn && conn.open) {
+        conn.send({ type: 'drop_weapon', id: dropId, weaponId: oldWId, x: myPlayer.x, z: myPlayer.z, mag: oldMag, reserve: oldRes });
+      }
+    }
+  }
+  myPlayer.inventory[w.type] = weaponId;
+  myPlayer.ammo[w.type] = { mag: w.mag, reserve: w.reserve };
+  switchWeapon(w.type === 'primary' ? 1 : 2); playSound('reload');
+}
+
+function switchWeapon(slotId) {
+  myPlayer.isReloading = false; 
+  
+  // 💡 如果按下 4 號鍵，直接強制指定切到 spike！不管三七二十一，只要身上有包就直接切過去！
+  if (slotId === 4) {
+    if (!myPlayer.inventory.spike) {
+      console.log("⚠️ 身上沒有 Spike，無法切換！");
+      return;
+    }
+    myPlayer.activeSlot = 'spike';
+  } else {
+    // 一般主武器、副武器、小刀的切換邏輯
+    let t = slotId === 1 ? 'primary' : (slotId === 2 ? 'secondary' : 'melee');
+    
+    // 如果該槽位沒東西（且不是小刀），直接返回
+    if (slotId !== 3 && !myPlayer.inventory[t]) return; 
+
+    myPlayer.activeSlot = t;
+  }
+
+  myPlayer.adsLevel = 0; myPlayer.recoilIndex = 0; updateADSFOV();
+  updateSlotUI();
+  
+  // 決定手上要顯示什麼 3D 模型
+  let wId = 'knife';
+  if (myPlayer.activeSlot === 'primary') wId = myPlayer.inventory.primary;
+  else if (myPlayer.activeSlot === 'secondary') wId = myPlayer.inventory.secondary;
+  else if (myPlayer.activeSlot === 'spike') wId = 'spike_item'; // 🎯 強制指定為 spike_item 模型！
+
+  updateGunModel(wId); updateHUDWeapon();
+}
+
+function updateHUDWeapon() {
+  const t = myPlayer.activeSlot;
+  const nameHud = document.getElementById('weapon-name-hud');
+  const ammoHud = document.getElementById('ammo-val');
+
+  // 🔥 關鍵：如果是拿著 Spike，直接顯示名稱與狀態，不去找 WEAPONS 資料庫
+  if (t === 'spike') {
+    nameHud.innerText = 'SPIKE';
+    ammoHud.innerText = 'OBJ';
+    return;
+  }
+
+  const wId = t === 'melee' ? 'knife' : myPlayer.inventory[t];
+  if (!wId) return;
+  const w = WEAPONS[wId];
+  nameHud.innerText = w.name;
+  if (w.type === 'melee') { 
+    document.getElementById('ammo-val').innerText = `∞ / ∞`; 
+  } else { 
+    document.getElementById('ammo-val').innerText = `${myPlayer.ammo[t].mag} / ${myPlayer.ammo[t].reserve}`; 
+  }
+}
+
+// --- 控制與按鍵 (精準阻斷 Ctrl+W，讓 Ctrl 蹲下順暢運作) ---
+function handleKeyDown(e) {
+  if (e.ctrlKey && ['KeyW', 'KeyS', 'KeyD', 'KeyR', 'KeyQ'].includes(e.code)) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (['KeyW', 'KeyS', 'KeyD'].includes(e.code)) {
+      keys[e.code] = true;
+    }
+    return false;
+  }
+
+  if (e.key === 'Escape') {
+    const shop = document.getElementById('shop-menu');
+    if (shop.style.display === 'flex') closeShop();
+  }
+  keys[e.code] = true; 
+  if (e.code === 'KeyB') toggleShop();
+  if (document.pointerLockElement !== document.body) return; 
+  if (e.code === 'KeyR' && !myPlayer.isReloading && !myPlayer.isInteracting && !myPlayer.isDead && myPlayer.activeSlot !== 'melee') reloadWeapon();
+  if (e.code === 'Digit1') switchWeapon(1); 
+  if (e.code === 'Digit2') switchWeapon(2); 
+  if (e.code === 'Digit3') switchWeapon(3);
+  if (e.code === 'Digit4' ) switchWeapon(4);
+  if (e.code === 'KeyG') {
+    if (myPlayer.activeSlot === 'spike') {
+      dropSpike(); // 如果手上正拿著 Spike，按 G 就把它丟到地上！
+    } else {
+      dropCurrentWeapon(); // 否則維持原本的丟槍功能
+    }
+  }
+}
+
+function handleKeyUp(e) { 
+  if (e.ctrlKey && ['KeyW', 'KeyS', 'KeyD', 'KeyR', 'KeyQ'].includes(e.code)) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  }
+  keys[e.code] = false; 
+}
+
+function handleRightClick(now) {
+  if (myPlayer.isDead || myPlayer.isReloading || myPlayer.isInteracting || (gameMode !== 'range' && gamePhase === 'buy')) return;
+  const wId = myPlayer.activeSlot === 'melee' ? 'knife' : myPlayer.inventory[myPlayer.activeSlot];
+  if (wId === 'classic') {
+     if (now - myPlayer.lastShotTime < 500) return; 
+     fireBurst(wId); 
+  } else if (['vandal', 'phantom', 'ares', 'spectre', 'sheriff', 'ghost'].includes(wId)) {
+     myPlayer.adsLevel = myPlayer.adsLevel === 1 ? 0 : 1; updateADSFOV();
+  } else if (wId === 'operator') {
+     myPlayer.adsLevel = (myPlayer.adsLevel + 1) % 3; updateADSFOV();
+  }
+}
+
+function updateADSFOV() {
+  let targetFOV = 75;
+  const wId = myPlayer.activeSlot === 'melee' ? 'knife' : myPlayer.inventory[myPlayer.activeSlot];
+  if (wId === 'operator') {
+      if (myPlayer.adsLevel === 1) targetFOV = 25; 
+      else if (myPlayer.adsLevel === 2) targetFOV = 15; 
+  } else if (['vandal', 'phantom', 'ares', 'spectre', 'sheriff', 'ghost'].includes(wId)) {
+      if (myPlayer.adsLevel === 1) targetFOV = 55; 
+  }
+  camera.fov = targetFOV; camera.updateProjectionMatrix();
+  if (wId === 'operator' && myPlayer.adsLevel > 0) { gunGroup.visible = false; } else { gunGroup.visible = true; }
+}
+
+function reloadWeapon() {
+  const slot = myPlayer.activeSlot; if (slot === 'melee') return;
+  const wId = myPlayer.inventory[slot]; if (!wId) return;
+  const w = WEAPONS[wId];
+  let curMag = myPlayer.ammo[slot].mag; let curRes = myPlayer.ammo[slot].reserve;
+  if (curMag >= w.mag || (gameMode !== 'range' && curRes <= 0)) return;
+
+  myPlayer.isReloading = true; 
+  myPlayer.adsLevel = 0; myPlayer.recoilIndex = 0; updateADSFOV();
+  playSound('reload'); document.getElementById('ammo-val').innerText = 'RELOADING...';
+  
+  setTimeout(() => {
+    if (!myPlayer.isReloading) return;
+    let needed = w.mag - curMag; 
+    let reloadAmt = gameMode === 'range' ? needed : Math.min(needed, curRes);
+    myPlayer.ammo[slot].mag += reloadAmt; 
+    if (gameMode !== 'range') myPlayer.ammo[slot].reserve -= reloadAmt;
+    myPlayer.isReloading = false; updateHUDWeapon();
+  }, 1500);
+}
+
+function handleMouseMove(e) {
+  if (!isLocked) return;
+  let sensMulti = myPlayer.adsLevel === 2 ? 0.3 : (myPlayer.adsLevel === 1 ? 0.6 : 1.0);
+  myPlayer.yaw -= e.movementX * 0.0022 * sensMulti; myPlayer.pitch -= e.movementY * 0.0022 * sensMulti;
+  myPlayer.pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, myPlayer.pitch));
+}
+
+// --- 移動與彈道階梯控制 ---
+function updateMovement(dt) {
+  if (myPlayer.isDead) { camera.position.set(myPlayer.x, myPlayer.groundY + 0.3, myPlayer.z); camera.rotation.set(0, 0, 0); camera.rotation.y = myPlayer.yaw; camera.rotation.x = myPlayer.pitch; camera.rotation.order = "YXZ"; return; }
+  if (myPlayer.isInteracting) { myPlayer.isMoving = false; camera.position.set(myPlayer.x, myPlayer.y, myPlayer.z); camera.rotation.set(0, 0, 0); camera.rotation.y = myPlayer.yaw; camera.rotation.x = myPlayer.pitch; camera.rotation.order = "YXZ"; checkInteraction(dt); return; }
+
+  myPlayer.isCrouching = keys['ControlLeft'] || keys['ControlRight'];
+  let isWalking = keys['ShiftLeft'] || keys['ShiftRight'];
+  myPlayer.isWalking = isWalking;
+  let isADS = myPlayer.adsLevel > 0;
+
+  let baseSpeed = 9.5;
+  let speedMultiplier = 1.0;
+
+  if (myPlayer.isCrouching) {
+    speedMultiplier = 0.35; 
+  } else if (isWalking) {
+    speedMultiplier = 0.40; 
+  } else if (isADS) {
+    speedMultiplier = 0.60; 
+  } else {
+    if (myPlayer.activeSlot === 'melee') {
+      speedMultiplier = 1.00; 
+    } else if (myPlayer.activeSlot === 'secondary') {
+      speedMultiplier = 0.95; 
+    } else {
+      speedMultiplier = 0.90; 
+    }
+  }
+
+  let speed = baseSpeed * speedMultiplier * dt;
+  let targetEyeY = myPlayer.isCrouching ? 0.7 : 1.6;
+  myPlayer.crouchOffset += (targetEyeY - myPlayer.crouchOffset) * 12 * dt;
+
+  const gravity = -22.0; const jumpForce = 8.5;
+  let moveX = 0, moveZ = 0;
+  if (keys['KeyW']) moveZ -= 1; if (keys['KeyS']) moveZ += 1; if (keys['KeyA']) moveX -= 1; if (keys['KeyD']) moveX += 1;
+
+  myPlayer.isMoving = (moveX !== 0 || moveZ !== 0);
+
+  if (myPlayer.isMoving && myPlayer.isGrounded) {
+    let stepInterval = isWalking ? 0.55 : 0.32; 
+    myPlayer.stepTimer += dt;
+    if (myPlayer.stepTimer >= stepInterval) {
+      let stepVol = (isWalking || myPlayer.isCrouching) ? 0 : 0.35;
+      playSound('footstep', stepVol, {x: myPlayer.x, y: myPlayer.y, z: myPlayer.z});
+      myPlayer.stepTimer = 0;
+      if (stepVol > 0 && isMultiplayerGame && conn && conn.open) {
+        conn.send({ type: 'play_sound', soundType: 'footstep', vol: stepVol, pos: {x: myPlayer.x, y: myPlayer.y, z: myPlayer.z} });
+      }
+    }
+  } else {
+    myPlayer.stepTimer = 0;
+  }
+
+  if (myPlayer.isMoving) {
+    const len = Math.hypot(moveX, moveZ); moveX /= len; moveZ /= len;
+    const forwardX = -Math.sin(myPlayer.yaw), forwardZ = -Math.cos(myPlayer.yaw);
+    const rightX = Math.cos(myPlayer.yaw), rightZ = -Math.sin(myPlayer.yaw);
+    let nextX = myPlayer.x + (forwardX * (-moveZ) + rightX * moveX) * speed; 
+    let nextZ = myPlayer.z + (forwardZ * (-moveZ) + rightZ * moveX) * speed;
+
+    let collideX = false; let collideZ = false;
+    for (let w of walls) { 
+      if (isColliding(nextX, myPlayer.z, w)) collideX = true;
+      if (isColliding(myPlayer.x, nextZ, w)) collideZ = true;
+    }
+    if (!collideX) myPlayer.x = nextX;
+    if (!collideZ) myPlayer.z = nextZ;
+  }
+
+  if (keys['Space'] && myPlayer.isGrounded && !myPlayer.isCrouching) { 
+    myPlayer.velocityY = jumpForce; myPlayer.isGrounded = false; 
+  }
+  
+  if (!myPlayer.isGrounded) { 
+    myPlayer.velocityY += gravity * dt; myPlayer.jumpY += myPlayer.velocityY * dt; 
+    if (myPlayer.jumpY <= 0 && myPlayer.velocityY < 0) { 
+      myPlayer.jumpY = 0; myPlayer.velocityY = 0; myPlayer.isGrounded = true; 
+      let landingVol = myPlayer.isCrouching ? 0 : 0.35;
+      playSound('jump_landing', landingVol, {x: myPlayer.x, y: myPlayer.y, z: myPlayer.z}); 
+      if (landingVol > 0 && isMultiplayerGame && conn && conn.open) {
+        conn.send({ type: 'play_sound', soundType: 'jump_landing', vol: landingVol, pos: {x: myPlayer.x, y: myPlayer.y, z: myPlayer.z} });
+      }
+    } 
+  }
+
+  myPlayer.y = myPlayer.groundY + myPlayer.crouchOffset + myPlayer.jumpY; 
+  camera.position.set(myPlayer.x, myPlayer.y, myPlayer.z); camera.rotation.set(0, 0, 0); camera.rotation.y = myPlayer.yaw; camera.rotation.x = myPlayer.pitch; camera.rotation.order = "YXZ";
+  if (gameMode !== 'range') checkInteraction(dt);
+}
+
+// --- 射擊與命中 ---
+function tryShoot(now) {
+  if (myPlayer.isDead || myPlayer.isReloading || myPlayer.isInteracting || document.pointerLockElement !== document.body || (gameMode !== 'range' && gamePhase === 'buy')) return;
+  const wId = myPlayer.activeSlot === 'melee' ? 'knife' : myPlayer.inventory[myPlayer.activeSlot];
+  if (!wId) return;
+  const w = WEAPONS[wId];
+
+  const cd = 60000 / w.fireRate;
+  if (now - myPlayer.lastShotTime < cd) return;
+
+  if (w.type === 'melee') {
+    myPlayer.lastShotTime = now; performMeleeAttack(w);
+  } else {
+    if (myPlayer.ammo[myPlayer.activeSlot].mag <= 0) { if(!myPlayer.isReloading) reloadWeapon(); return; }
+    if (now - myPlayer.lastShotTime > 380) myPlayer.recoilIndex = 0;
+    myPlayer.recoilIndex++; myPlayer.lastShotTime = now;
+    myPlayer.ammo[myPlayer.activeSlot].mag--; updateHUDWeapon();
+    performGunShoot(w);
+  }
+}
+
+function fireBurst(wId) {
+  const w = WEAPONS[wId]; let shotsFired = 0;
+  myPlayer.lastShotTime = performance.now() + 500; myPlayer.recoilIndex = 1;
+  let burstInterval = setInterval(() => {
+    if (myPlayer.isDead || myPlayer.ammo[myPlayer.activeSlot].mag <= 0 || shotsFired >= 3) {
+      clearInterval(burstInterval);
+      if (myPlayer.ammo[myPlayer.activeSlot].mag <= 0 && !myPlayer.isReloading) reloadWeapon();
+      return;
+    }
+    myPlayer.recoilIndex++; myPlayer.ammo[myPlayer.activeSlot].mag--; updateHUDWeapon();
+    performGunShoot(w); shotsFired++;
+  }, 90); 
+}
+
+function performMeleeAttack(knifeStats) {
+  playSound('knife'); 
+  const raycaster = new THREE.Raycaster(); 
+  raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+  let targetMeshes = [...playerMeshes, ...collisionMeshes];
+  const intersects = raycaster.intersectObjects(targetMeshes, true);
+  
+  if (intersects.length > 0 && intersects[0].distance <= knifeStats.range) {
+    let hitMesh = intersects[0].object; 
+    let hitPoint = intersects[0].point;
+    let currObj = hitMesh; 
+    let hitId = null;
+    let hitPart = null;
+
+    while (currObj) { 
+      if (currObj.userData && currObj.userData.id) { 
+        hitId = currObj.userData.id; 
+        hitPart = currObj.userData.part; 
+        break; 
+      } 
+      currObj = currObj.parent; 
+    }
+
+    if (hitId) {
+      playSound('headshot'); 
+      
+      let isBackstab = false;
+      let targetPlayer = otherPlayers[hitId];
+
+      if (targetPlayer && targetPlayer.mesh) {
+        let targetX = targetPlayer.mesh.position.x;
+        let targetZ = targetPlayer.mesh.position.z;
+        let myX = myPlayer.x;
+        let myZ = myPlayer.z;
+
+        // 1. 取得「從敵人指向你（攻擊者）」的向量
+        let fromTargetToMe = new THREE.Vector3(myX - targetX, 0, myZ - targetZ).normalize();
+
+        // 2. 取得敵人的面向向量
+        let enemyForward = new THREE.Vector3(-Math.sin(targetPlayer.mesh.rotation.y || 0), 0, -Math.cos(targetPlayer.mesh.rotation.y || 0));
+
+        // 3. 計算點積
+        let dotVal = enemyForward.dot(fromTargetToMe);
+
+        console.log("--- 最終背刀測試 ---", { dotVal, hitPart });
+
+        // 4. 邏輯判定：
+        // 當你在他正面時，點積是正數 (> 0.2)
+        // 當你在他背面時，點積是負數 (< -0.2)
+        let isBehind = dotVal < -0.2;
+
+        // 5. 拔掉限制，只要在背後不管打哪裡都算背刺 100！
+        if (isBehind) {
+          isBackstab = true;
+        }
+      }
+      
+      let dmg = isBackstab ? knifeStats.dmgBack : knifeStats.dmgBody; // 背刺 100，正面 30
+      
+      createHitEffect(hitPoint.x, hitPoint.y, hitPoint.z, isBackstab); 
+      showHitIndicator(dmg, isBackstab);
+
+      let weaponName = 'Knife';
+
+      if (isMultiplayerGame && conn && conn.open) {
+        conn.send({ 
+          type: 'hit_player', 
+          targetId: hitId, 
+          damage: dmg, 
+          hitX: hitPoint.x, 
+          hitY: hitPoint.y, 
+          hitZ: hitPoint.z, 
+          isHeadshot: isBackstab, 
+          attackerId: myPlayer.id,
+          attackerName: myPlayer.name,
+          weapon: weaponName 
+        }); 
+      }
+
+      if (otherPlayers[hitId]) {
+        applyDamage(hitId, dmg, isBackstab);
+        let enemyRealName = otherPlayers[hitId].name || 'Agent_1';
+        recordDamage(myPlayer.id, hitId, enemyRealName, dmg, 'body', weaponName);
+      }
+    } else {
+      createHitEffect(hitPoint.x, hitPoint.y, hitPoint.z, false, 0x888888); 
+    }
+  }
+}
+
+function performGunShoot(w) {
+  playSound('shoot', 0.35, null, w.isSilenced); triggerMuzzleEffect(); 
+
+  let shotNum = myPlayer.recoilIndex; 
+  let baseRecoil = w.recoilBase || 0.015;
+  let baseSpread = w.spread || 0.005;
+
+  let pitchOffset = 0; let yawOffset = 0;
+  let moveInaccuracy = 0;
+
+  // 嚴格對應你要求的彈道階梯：移動跳 > 原地跳 > 跑動 > 靜步 > 蹲走 > 不動 > 原地蹲下
+  if (!myPlayer.isGrounded) {
+    if (myPlayer.isMoving) {
+      moveInaccuracy = 0.28; // 移動跳（最散）
+    } else {
+      moveInaccuracy = 0.22; // 原地跳
+    }
+  } else if (myPlayer.isMoving) {
+    if (myPlayer.isCrouching) {
+      moveInaccuracy = 0.02;  // 蹲走 (比靜步更穩)
+    } else if (myPlayer.isWalking) {
+      moveInaccuracy = 0.055; // 靜步移動 (Shift)
+    } else {
+      moveInaccuracy = 0.15;  // 一般跑動
+    }
+    if (w.name === 'Operator') moveInaccuracy = 0.35;
+  } else if (w.name === 'Operator' && myPlayer.adsLevel === 0) {
+    moveInaccuracy = 0.12;
+  } else {
+    moveInaccuracy = 0.0;   // 原地不動 / 原地蹲下
+  }
+
+  if (moveInaccuracy > 0) {
+    pitchOffset += (Math.random() - 0.5) * moveInaccuracy;
+    yawOffset += (Math.random() - 0.5) * moveInaccuracy;
+  }
+
+  let minigunMultiplier = w.isMinigun ? Math.min(1.5, 1.0 + (shotNum * 0.03)) : 1.0; 
+  let crouchStability = myPlayer.isCrouching ? 0.45 : 1.0;
+
+  if (shotNum <= 3) { 
+    if (shotNum > 1) pitchOffset += (shotNum - 1) * baseRecoil * 0.6 * crouchStability; 
+  } else if (shotNum <= 9) {
+    let climbProgress = shotNum - 3;
+    pitchOffset += (climbProgress * baseRecoil * 1.2 + Math.random() * 0.003) * minigunMultiplier * crouchStability;
+    yawOffset += (Math.random() - 0.5) * (baseSpread * 2.5) * minigunMultiplier * crouchStability;
+  } else {
+    pitchOffset += (4.5 * baseRecoil + (Math.random() - 0.5) * 0.006) * minigunMultiplier * crouchStability;
+    let swayDir = Math.sin(shotNum * 1.5) > 0 ? 1 : -1;
+    yawOffset += swayDir * (baseSpread * 4.5 + Math.random() * 0.012) * minigunMultiplier * crouchStability;
+  }
+
+  if (myPlayer.adsLevel > 0) { pitchOffset *= 0.5; yawOffset *= 0.5; }
+
+  let finalPitch = Math.max(-Math.PI / 2.1, Math.min(Math.PI / 2.1, myPlayer.pitch + pitchOffset));
+  let finalYaw = myPlayer.yaw + yawOffset;
+  let shootDir = new THREE.Vector3(-Math.sin(finalYaw) * Math.cos(finalPitch), Math.sin(finalPitch), -Math.cos(finalYaw) * Math.cos(finalPitch)).normalize();
+
+  if (w.isShotgun) {
+    let pelletCount = w.pellets || 6;
+    for (let i = 0; i < pelletCount; i++) {
+      let pDir = shootDir.clone();
+      pDir.x += (Math.random() - 0.5) * w.spread;
+      pDir.y += (Math.random() - 0.5) * w.spread;
+      pDir.z += (Math.random() - 0.5) * w.spread;
+      pDir.normalize();
+      executeRaycastShot(w, pDir, true);
+    }
+  } else {
+    executeRaycastShot(w, shootDir, false);
+  }
+
+  gunGroup.position.z = 0.06;
+  gunGroup.rotation.x = Math.min(0.15, pitchOffset * 0.6);
+  createTracerLine(camera.position.x, camera.position.y - 0.1, camera.position.z, shootDir, true, 50);
+  if (conn && conn.open) conn.send({ type: 'shoot_effect', x: camera.position.x, y: camera.position.y - 0.1, z: camera.position.z, dir: {x: shootDir.x, y: shootDir.y, z: shootDir.z}, dist: 50, weapon: 'gun' });
+}
+
+function executeRaycastShot(weapon, dir, isPellet) {
+  const raycaster = new THREE.Raycaster(camera.position, dir);
+  let targetMeshes = [...playerMeshes, ...collisionMeshes];
+  const intersects = raycaster.intersectObjects(targetMeshes, true);
+
+  if (intersects.length > 0) {
+    let hitMesh = intersects[0].object;
+    let hitPoint = intersects[0].point;
+    let hitDist = intersects[0].distance;
+    
+    let currObj = hitMesh;
+    let hitId = null;
+    let hitPart = 'body';
+
+    while (currObj) {
+      if (currObj.userData && currObj.userData.id) {
+        hitId = currObj.userData.id;
+        hitPart = currObj.userData.part || 'body';
+        break;
+      }
+      currObj = currObj.parent;
+    }
+
+    if (hitId) {
+      let dmg = weapon.dmgBody;
+      let isHead = (hitPart === 'head');
+
+      if (isHead) dmg = weapon.dmgHead;
+      else if (hitPart === 'leg' || hitPart === 'arm') dmg = weapon.dmgLeg;
+
+      if (weapon.hasFalloff && weapon.falloffDist && hitDist > weapon.falloffDist) {
+        if (isHead && weapon.farHead !== undefined) dmg = weapon.farHead;
+        else if (!isHead && weapon.farBody !== undefined) dmg = weapon.farBody;
+        else if (hitPart === 'leg' && weapon.farLeg !== undefined) dmg = weapon.farLeg;
+      }
+
+      createHitEffect(hitPoint.x, hitPoint.y, hitPoint.z, isHead);
+      showHitIndicator(dmg, isHead);
+
+      if (isMultiplayerGame && conn && conn.open) {
+        conn.send({
+          type: 'hit_player',
+          targetId: hitId,
+          damage: dmg,
+          hitX: hitPoint.x,
+          hitY: hitPoint.y,
+          hitZ: hitPoint.z,
+          isHeadshot: isHead,
+          attackerId: myPlayer.id,
+          attackerName: myPlayer.name,
+          weapon: weapon.name
+        });
+      }
+
+      if (otherPlayers[hitId]) {
+        applyDamage(hitId, dmg, isHead, weapon.name, myPlayer.id, myPlayer.name);
+        let enemyName = otherPlayers[hitId].name || 'Agent';
+        recordDamage(myPlayer.id, hitId, enemyName, dmg, hitPart, weapon.name);
+      }
+    } else {
+      createHitEffect(hitPoint.x, hitPoint.y, hitPoint.z, false, 0x888888);
+    }
+  }
+}
+
+
+function showHitIndicator(dmg, isHeadshot) {
+  const ind = document.getElementById('hit-indicator'); ind.innerText = isHeadshot ? `大傷！ -${dmg}` : `命中！ -${dmg}`; ind.style.color = isHeadshot ? '#ff4655' : '#ffaa00'; ind.style.opacity = 1;
+  if(ind.timeout) clearTimeout(ind.timeout); ind.timeout = setTimeout(() => ind.style.opacity = 0, 1000);
+}
+
+function createHitEffect(x, y, z, isHeadshot = false, colorOverride = null) {
+  if (isHeadshot) playSound('headshot');
+  const pCount = 12; const particles = []; const group = new THREE.Group(); group.position.set(x, y, z);
+  let color = colorOverride ? colorOverride : (isHeadshot ? 0xffea00 : 0xff1133);
+  for (let i = 0; i < pCount; i++) {
+    const p = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.08), new THREE.MeshBasicMaterial({ color: color }));
+    p.userData = { vx: (Math.random() - 0.5)*6, vy: (Math.random() - 0.5)*6 + 1.5, vz: (Math.random() - 0.5)*6 }; group.add(p); particles.push(p);
+  }
+  scene.add(group); let startTime = performance.now();
+  function animateEffect() {
+    if ((performance.now() - startTime) > 250) { scene.remove(group); return; }
+    particles.forEach(p => { p.position.x += p.userData.vx * 0.016; p.position.y += p.userData.vy * 0.016; p.position.z += p.userData.vz * 0.016; p.scale.multiplyScalar(0.92); }); requestAnimationFrame(animateEffect);
+  }
+  animateEffect();
+}
+
+function handleInGameData(data) {
+  const targetId = data.id || conn.peer;
+  if (!otherPlayers[targetId]) { 
+    const mesh = createCharacterMesh(data.team, targetId); 
+    scene.add(mesh); 
+    otherPlayers[targetId] = { 
+      mesh: mesh, 
+      hp: data.hp, 
+      team: data.team, 
+      isDead: data.isDead, 
+      yaw: 0, 
+      name: data.name || 'Agent' // 🎯 關鍵：初始化時把對方的暱稱存起來！
+    }; 
+  }
+  
+  otherPlayers[targetId].hp = data.hp; 
+  otherPlayers[targetId].isDead = data.isDead;
+  
+  // 🎯 確保隨時同步對方的最新暱稱
+  if (data.name) {
+    otherPlayers[targetId].name = data.name;
+  }
+  
+  if (data.isDead && otherPlayers[targetId].mesh) { 
+      scene.remove(otherPlayers[targetId].mesh); playerMeshes = playerMeshes.filter(m=>m!==otherPlayers[targetId].mesh); otherPlayers[targetId].mesh = null; 
+  } else if (!data.isDead && !otherPlayers[targetId].mesh) {
+      otherPlayers[targetId].mesh = createCharacterMesh(data.team, targetId); scene.add(otherPlayers[targetId].mesh);
+  }
+  
+  if (!data.isDead && otherPlayers[targetId].mesh) {
+    let targetMeshY = (data.y !== undefined) ? Math.max(0, data.y - 1.6) : 0;
+    otherPlayers[targetId].mesh.position.x = data.x;
+    otherPlayers[targetId].mesh.position.y += (targetMeshY - otherPlayers[targetId].mesh.position.y) * 0.35;
+    otherPlayers[targetId].mesh.position.z = data.z;
+
+    otherPlayers[targetId].mesh.rotation.y = data.yaw; otherPlayers[targetId].yaw = data.yaw; 
+    let targetScale = data.isCrouch ? 0.6 : 1.0;
+    otherPlayers[targetId].mesh.scale.y += (targetScale - otherPlayers[targetId].mesh.scale.y) * 0.3;
+  }
+}
+
+function applyDamage(playerId, dmg, isHeadshot, weaponUsed, attackerId, attackerName) {
+  
+  // 🛡️ [強制保護鎖] 如果是小刀背刺傳過來的 100 滴傷害，絕對不准被任何規則覆蓋或降級！
+  if (weaponUsed === 'Knife' && dmg === 100) {
+    dmg = 100; 
+  }
+
+  if (gameMode === 'range' && playerId === 'range_dummy') {
+    rangeDummyDamage += dmg;
+    rangeDummyLastHitTime = performance.now();
+    return;
+  }
+
+  if (playerId === myPlayer.id) {
+    if (myPlayer.isDead) return;
+    myPlayer.hp -= dmg; document.getElementById('hp-val').innerText = Math.max(0, myPlayer.hp);
+    
+    let realAttackerId = attackerId || 'enemy';
+    let realAttackerName = attackerName || (otherPlayers[realAttackerId] ? otherPlayers[realAttackerId].name : '敵人');
+    let finalWeapon = weaponUsed || 'Vandal';
+    
+    // 💡 修正部位判定：如果是小刀背刺（dmg === 100），部位直接標記為背部或直接傳入，避免被誤當成 head/body
+    let hitLocation = (dmg === 100) ? 'body' : (isHeadshot ? 'head' : 'body');
+    
+    recordDamage(realAttackerId, myPlayer.id, realAttackerName, dmg, hitLocation, finalWeapon);
+
+    if (isHeadshot) { document.getElementById('hud').style.background = 'rgba(255,0,0,0.3)'; setTimeout(() => document.getElementById('hud').style.background = 'transparent', 150); }
+    if (myPlayer.hp <= 0) { myPlayer.hp = 0; myPlayer.isDead = true; document.getElementById('hp-val').innerText = 'DEAD'; checkWinCondition(); }
+  } else if (otherPlayers[playerId]) {
+    if (otherPlayers[playerId].isDead) return;
+    
+    // 💡 確保遠端其他玩家扣血時，確實扣掉傳進來的 dmg（也就是 100 滴）
+    otherPlayers[playerId].hp -= dmg;
+    
+    if (otherPlayers[playerId].hp <= 0) {
+      otherPlayers[playerId].hp = 0; otherPlayers[playerId].isDead = true;
+      if (otherPlayers[playerId].mesh) { scene.remove(otherPlayers[playerId].mesh); playerMeshes = playerMeshes.filter(m=>m!==otherPlayers[playerId].mesh); otherPlayers[playerId].mesh = null; }
+      checkWinCondition();
+    }
+  }
+}
+
+function checkWinCondition() {
+  if (gameMode === 'range' || isRoundEnding) return;
+
+  let attackerDead = true; 
+  let defenderDead = true;
+
+  // 檢查本機玩家是否生存
+  if (myPlayer.team === 'attacker' && !myPlayer.isDead) attackerDead = false;
+  if (myPlayer.team === 'defender' && !myPlayer.isDead) defenderDead = false;
+
+  // 檢查其他在線玩家是否生存
+  Object.values(otherPlayers).forEach(p => {
+    if (p.team === 'attacker' && !p.isDead) attackerDead = false;
+    if (p.team === 'defender' && !p.isDead) defenderDead = false;
+  });
+
+  const siteIndicator = document.getElementById('site-indicator');
+
+  // 1. 如果 Spike 已經安裝了 (Spike Planted)
+  if (spike.planted) {
+    // 已經下包的情況下，攻擊方全滅「不能」直接結束回合！
+    // 必須由防守方手動拆包成功（呼叫 defuseSpike）或是 45 秒倒數結束炸毀來決定勝負。
+    if (defenderDead) {
+      // 如果防守方也死光了（這通常不可能發生，但以防萬一防守方全滅且包已下），攻擊方直接贏
+      setTimeout(() => handleRoundEnd('attacker'), 500);
+    } else if (attackerDead) {
+      // 攻擊方死光沒關係，只要提示防守方快拆包即可
+      siteIndicator.style.display = 'block';
+      siteIndicator.innerText = "攻擊方已全滅！防守方請盡速前往拆除 SPIKE！";
+    }
+    return;
+  }
+
+  // 2. 還沒下包的情況下的傳統全殲判定
+  if (defenderDead) {
+    // 防守方全滅 -> 進攻方勝 (無論有沒有包，只要防守方死光且沒下包就是進攻方贏)
+    setTimeout(() => handleRoundEnd('attacker'), 500); 
+  } else if (attackerDead) {
+    // 進攻方全滅且「還沒下包」 -> 防守方勝
+    setTimeout(() => handleRoundEnd('defender'), 500); 
+  }
+}
+
+function handleRoundEnd(winnerTeam) {
+  if (gameMode === 'range' || isRoundEnding) return; isRoundEnding = true;
+  if (isMultiplayerGame && !isHost) return;
+
+  // 🎯 修正一：換邊後分數計算正確對應原本的隊伍
+  if (!hasSwappedSide) {
+    if (winnerTeam === 'attacker') scoreAttacker++; 
+    else scoreDefender++;
+  } else {
+    // 換邊後，當前扮演進攻方/防守方的贏家，要回饋給原本的隊伍分數
+    if (winnerTeam === 'attacker') scoreDefender++; 
+    else scoreAttacker++;
+  }
+  updateScoreUI();
+
+  let isMatchWon = false; 
+  let matchWinnerName = winnerTeam === 'attacker' ? '進攻方' : '防守方';
+  if (scoreAttacker >= 13 && (scoreAttacker - scoreDefender >= 2)) isMatchWon = true; 
+  else if (scoreDefender >= 13 && (scoreDefender - scoreAttacker >= 2)) isMatchWon = true;
+
+  if (isMatchWon) {
+    alert(`🏆 比賽結束！${matchWinnerName} 贏得了整場比賽！\n最終比分: ${scoreAttacker} - ${scoreDefender}`);
+    if (isMultiplayerGame && isHost && conn && conn.open) conn.send({ type: 'match_end', scoreAttacker, scoreDefender, winner: winnerTeam });
+    resetMatch(); 
+  } else {
+    let otMsg = (scoreAttacker >= 12 && scoreDefender >= 12) ? " (延長賽！)" : "";
+    let total = scoreAttacker + scoreDefender;
+    let isOT = (scoreAttacker >= 12 && scoreDefender >= 12);
+
+    if ((!isOT && total === 12 && !hasSwappedSide) || (isOT)) {
+        hasSwappedSide = true;
+        myPlayer.team = myPlayer.team === 'attacker' ? 'defender' : 'attacker';
+        
+        // 🎯 修正二：正確切換 Bot 與其他玩家的陣營（原本寫錯成全部變 defender）
+        Object.values(otherPlayers).forEach(p => { 
+          p.team = p.team === 'attacker' ? 'defender' : 'attacker'; 
+        });
+        
+        alert(`回合結束！${matchWinnerName} 勝出！${otMsg}\n⚠️ 攻守交換！`);
+    } else {
+        alert(`回合結束！${matchWinnerName} 勝出！${otMsg}`);
+    }
+    if (isMultiplayerGame && isHost && conn && conn.open) conn.send({ type: 'round_reset', scoreAttacker, scoreDefender });
+    resetRound();
+  }
+}
+function resetMatch() { scoreAttacker = 0; scoreDefender = 0; hasSwappedSide = false; updateScoreUI(); resetRound(); }
+
+function triggerMuzzleEffect() { muzzleLight.intensity = 6; muzzleMesh.material.opacity = 1; setTimeout(() => { muzzleLight.intensity = 0; muzzleMesh.material.opacity = 0; }, 45); }
+function createTracerLine(x, y, z, dir, isLocal, dist = 60) {
+  const start = new THREE.Vector3(x, y, z); const end = start.clone().add(dir.clone().multiplyScalar(dist));
+  const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([start, end]), new THREE.LineBasicMaterial({ color: isLocal ? 0xffaa00 : 0xff4444, transparent: true, opacity: 0.8 }));
+  scene.add(line); setTimeout(() => scene.remove(line), 45);
+}
+
+// --- 回合計時 ---
+function startTimer() {
+  if (gameMode === 'range') return;
+  if (timerInterval) clearInterval(timerInterval);
+  gamePhase = 'buy'; roundTimer = 15; updatePhaseVisuals(); updateTimerUI(roundTimer);
+  
+  // 🎯 只要一進入下一局的買槍準備時間（Buy Phase），就顯示上一局的對戰報告！
+  finalizeCombatReport();
+
+  timerInterval = setInterval(() => {
+    if (isMultiplayerGame && !isHost) return;
+    if (isRoundEnding) return;
+    
+    if (gamePhase === 'play' && spike.planted) {
+      if (isMultiplayerGame && conn && conn.open) conn.send({ type: 'sync_game_state', timer: roundTimer, phase: gamePhase, scoreAttacker, scoreDefender });
+      return;
+    }
+
+    if (roundTimer > 0) { 
+      roundTimer--; updateTimerUI(roundTimer); 
+      if (isMultiplayerGame && conn && conn.open) conn.send({ type: 'sync_game_state', timer: roundTimer, phase: gamePhase, scoreAttacker, scoreDefender }); 
+    } else {
+      if (gamePhase === 'buy') {
+        gamePhase = 'play'; roundTimer = 100; updatePhaseVisuals(); updateTimerUI(roundTimer);
+        
+        // 🔄 買槍時間結束、正式開打（FIGHT）時，自動將戰報面板隱藏！
+        document.getElementById('combat-report-panel').style.display = 'none';
+
+        if (!isMultiplayerGame || isHost) document.getElementById('shop-menu').style.display = 'none';
+      } else {
+        if (!spike.planted) handleRoundEnd('defender');
+      }
+    }
+  }, 1000);
+}
+
+function updateTimerUI(seconds) {
+  if (gameMode === 'range') return;
+  const timerElem = document.getElementById('timer');
+  if (spike.planted) { timerElem.style.color = '#ff4655'; timerElem.innerText = `SPIKE: ${spike.detonateTimer}s`; } 
+  else { timerElem.style.color = (gamePhase === 'buy') ? '#00ffcc' : '#fff'; timerElem.innerText = `${Math.floor(seconds / 60)}:${(seconds % 60).toString().padStart(2, '0')}`; }
+}
+
+function resetRound() {
+  if (gameMode === 'range') return;
+  if (spike.interval) clearInterval(spike.interval);
+  keys = {};
+
+// 🔄 確保新一局剛重置時，戰報面板是關閉的（等進入 buy 階段倒數才會跳出來）
+  //document.getElementById('combat-report-panel').style.display = 'none';
+
+  myPlayer.hp = 100; myPlayer.isDead = false; myPlayer.isInteracting = false; myPlayer.isReloading = false; closeShop();
+  myPlayer.adsLevel = 0; myPlayer.recoilIndex = 0; updateADSFOV();
+  myPlayer.z = myPlayer.team === 'attacker' ? 45 : -45; myPlayer.x = 0; myPlayer.y = 1.6; myPlayer.yaw = 0; myPlayer.pitch = 0; myPlayer.groundY = 0; myPlayer.crouchOffset = 1.6; myPlayer.jumpY = 0;
+  
+  droppedWeapons.forEach(d => scene.remove(d.mesh));
+  droppedWeapons = [];
+
+  spike.defuseProgress = 0; spike.isHalfWay = false;
+
+  // 🔥 關鍵修正：每一局回合重置時，強制清空玩家身上的 Spike 狀態！
+  myPlayer.inventory.spike = false;
+  if (myPlayer.activeSlot === 'spike') {
+    if (myPlayer.inventory.primary) switchWeapon(1);
+    else if (myPlayer.inventory.secondary) switchWeapon(2);
+    else switchWeapon(3);
+  }
+
+  if (!myPlayer.inventory.secondary) myPlayer.inventory.secondary = 'classic';
+  if(myPlayer.inventory.primary) { myPlayer.ammo.primary.mag = WEAPONS[myPlayer.inventory.primary].mag; myPlayer.ammo.primary.reserve = WEAPONS[myPlayer.inventory.primary].reserve; }
+  if(myPlayer.inventory.secondary) { myPlayer.ammo.secondary.mag = WEAPONS[myPlayer.inventory.secondary].mag; myPlayer.ammo.secondary.reserve = WEAPONS[myPlayer.inventory.secondary].reserve; }
+  
+  if (myPlayer.activeSlot !== 'melee' && !myPlayer.inventory[myPlayer.activeSlot]) switchWeapon(myPlayer.inventory.primary ? 1 : 2);
+  else { updateSlotUI(); updateHUDWeapon(); }
+
+  document.getElementById('room-tag').innerText = isMultiplayerGame ? `房間對戰 [${myPlayer.team === 'attacker' ? '進攻方' : '防守方'}]` : `單人模式 [${myPlayer.team === 'attacker' ? '進攻方' : '防守方'}]`;
+
+  Object.keys(otherPlayers).forEach(id => {
+    otherPlayers[id].isDead = false; otherPlayers[id].hp = 100;
+    if (!otherPlayers[id].mesh) { otherPlayers[id].mesh = createCharacterMesh(otherPlayers[id].team, id); scene.add(otherPlayers[id].mesh); }
+    if (id === 'bot_1') { 
+      otherPlayers[id].x = 0; otherPlayers[id].z = otherPlayers[id].team === 'attacker' ? 45 : -45; 
+      otherPlayers[id].mesh.position.set(0, 0, otherPlayers[id].z);
+      otherPlayers[id].path = []; otherPlayers[id].isNavigatingToSpike = false;
+      otherPlayers[id].isDefusing = false; otherPlayers[id].defuseTimer = 0;
+      otherPlayers[id].isPlanting = false; otherPlayers[id].plantTimer = 0;
+      otherPlayers[id].currentStrategy = null; otherPlayers[id].defuseProgress = 0;
+      otherPlayers[id].isHalfWay = false; otherPlayers[id].tacticalRole = 'default';
+      otherPlayers[id].fakeDefuseTimer = 0; otherPlayers[id].avoidTimer = 0;
+    }
+  });
+
+  document.getElementById('hp-val').innerText = '100'; document.getElementById('site-indicator').style.display = 'none';
+  
+  // ==================== 修改部分：重置並在進攻方前方生成 Spike ====================
+  spike.planted = false; 
+  spike.detonateTimer = 45; // 改為 45 秒引爆
+  isRoundEnding = false; 
+  gamePhase = 'buy';
+  
+  spike.carrier = null;         // 回合重置，一開始無人帶包
+  spike.isDroppedOnGround = true; // 預設放在地上等進攻方來撿
+  
+  spike.x = 0; 
+  spike.z = 35; // 放在進攻方前方地板
+  
+  if (spike.mesh) { scene.remove(spike.mesh); spike.mesh = null; }
+  if (spike.rangeRingMesh) { scene.remove(spike.rangeRingMesh); spike.rangeRingMesh = null; }
+  if (spike.dropMesh) { scene.remove(spike.dropMesh); spike.dropMesh = null; }
+
+  // 在畫面中生成地上的紅色 Spike 物品
+  const spikeGeo = new THREE.BoxGeometry(0.4, 0.3, 0.5);
+  const spikeMat = new THREE.MeshLambertMaterial({ color: 0xff4655, emissive: 0xaa0011 });
+  spike.dropMesh = new THREE.Mesh(spikeGeo, spikeMat);
+  spike.dropMesh.position.set(spike.x, 0.15, spike.z);
+  scene.add(spike.dropMesh);
+  // =========================================================================
+
+  updatePhaseVisuals();
+  if (!isMultiplayerGame || isHost) startTimer();
+}
+
+function dropSpike() {
+  if (myPlayer.activeSlot !== 'spike' || myPlayer.isDead || isRoundEnding) return;
+
+  // 1. 清除玩家身上的包狀態
+  myPlayer.inventory.spike = false;
+  spike.carrier = null;
+  spike.isDroppedOnGround = true;
+  spike.x = myPlayer.x;
+  spike.z = myPlayer.z;
+
+  // 2. 在腳下生成地上的 Spike 3D 模型
+  if (spike.dropMesh) { 
+    scene.remove(spike.dropMesh); 
+    spike.dropMesh = null; 
+  }
+  
+  const spikeGeo = new THREE.BoxGeometry(0.4, 0.3, 0.5);
+  const spikeMat = new THREE.MeshLambertMaterial({ color: 0xff4655, emissive: 0xaa0011 });
+  spike.dropMesh = new THREE.Mesh(spikeGeo, spikeMat);
+  spike.dropMesh.position.set(spike.x, 0.15, spike.z);
+  scene.add(spike.dropMesh);
+
+  playSound('drop');
+
+  // ==================== 💡 新增：告訴對方「包被丟在這裡了」 ====================
+  if (isMultiplayerGame && conn && conn.open) {
+    conn.send({ 
+      type: 'spike_drop', 
+      x: spike.x, 
+      z: spike.z 
+    });
+  }
+  // =========================================================================
+
+  // 3. 切換回手上的武器（主武器或副武器）
+  if (myPlayer.inventory.primary) switchWeapon(1);
+  else if (myPlayer.inventory.secondary) switchWeapon(2);
+  else switchWeapon(3);
+
+  // 4. 更新 UI 介面隱藏第四格
+  updateSlotUI();
+
+  const siteIndicator = document.getElementById('site-indicator');
+  siteIndicator.style.display = 'block';
+  siteIndicator.innerText = `你已丟下 SPIKE！`;
+  setTimeout(() => { siteIndicator.style.display = 'none'; }, 2000);
+}
+
+function updateScoreUI() { if(gameMode === 'range') return; document.getElementById('score-attacker').innerText = scoreAttacker; document.getElementById('score-defender').innerText = scoreDefender; }
+
+// --- 互動系統 ---
+let actionTimer = 0;
+let hasPlayedStartBeep = false; 
+
+function checkInteraction(dt) {
+  if (gameMode === 'range' || myPlayer.isDead || isRoundEnding) return;
+  const siteIndicator = document.getElementById('site-indicator'); 
+  const actionBar = document.getElementById('action-bar'); 
+  const actionProgress = document.getElementById('action-progress'); 
+  const actionText = document.getElementById('action-text');
+
+  // ==================== 第一階段：撿起地上的 SPIKE ====================
+  if (!spike.planted && spike.isDroppedOnGround && myPlayer.team === 'attacker') {
+    let distToSpike = Math.hypot(myPlayer.x - spike.x, myPlayer.z - spike.z);
+    if (distToSpike <= 2.2) {
+      siteIndicator.style.display = 'block';
+      siteIndicator.innerText = `按 [F] 撿起 SPIKE (炸彈)`;
+      if (keys['KeyF']) {
+        keys['KeyF'] = false;
+        spike.isDroppedOnGround = false;
+        spike.carrier = myPlayer.id; // 記錄你身上帶包了！
+        myPlayer.inventory.spike = true; // 放入背包！手上繼續拿槍
+        
+        if (spike.dropMesh) { 
+          scene.remove(spike.dropMesh); 
+          spike.dropMesh = null; 
+        }
+        
+        playSound('reload');
+        siteIndicator.innerText = `你已拾取 SPIKE！請前往 A 或 B 點安包`;
+        updateSlotUI();
+
+        // ==================== 💡 新增：告訴對方「包被我撿走了」 ====================
+        if (isMultiplayerGame && conn && conn.open) {
+          conn.send({ type: 'spike_pickup', carrier: myPlayer.id });
+        }
+        //
+
+        return;
+      }
+      return; // 靠近包時直接返回，不往下執行
+    }
+  }
+  // =========================================================================
+  
+  let inSite = null;
+  if (Math.hypot(myPlayer.x - sites.A.x, myPlayer.z - sites.A.z) < sites.A.radius) inSite = 'A';
+  if (Math.hypot(myPlayer.x - sites.B.x, myPlayer.z - sites.B.z) < sites.B.radius) inSite = 'B';
+
+  if (gamePhase === 'play' && inSite && !spike.planted && myPlayer.team === 'attacker') {
+    siteIndicator.style.display = 'block'; 
+
+    // 嚴格檢查：必須身上有包才能安包！
+    if (spike.carrier === myPlayer.id || myPlayer.inventory.spike) {
+      siteIndicator.innerText = `進入 ${inSite} 區：按住 [F] 安裝 SPIKE`;
+      
+      if (keys['KeyF']) {
+        if (!hasPlayedStartBeep) {
+          playSound('plant_beep'); setTimeout(() => playSound('plant_beep'), 120);
+          if (isMultiplayerGame && conn && conn.open) conn.send({ type: 'play_sound', soundType: 'plant_beep' });
+          hasPlayedStartBeep = true;
+
+          // 一開始按住 [F] 安包，自動切換成手上拿 Spike 的模型！
+          myPlayer.activeSlot = 'spike';
+          updateGunModel('spike_item');
+          updateHUDWeapon();
+        }
+        myPlayer.isInteracting = true; actionTimer += dt; 
+        actionBar.style.display = 'block'; actionText.innerText = '安裝 SPIKE...'; 
+        actionProgress.style.width = `${(actionTimer / 4) * 100}%`;
+
+        if (actionTimer >= 4) { 
+          plantSpike(myPlayer.x, myPlayer.z, true); 
+          actionTimer = 0; hasPlayedStartBeep = false; myPlayer.isInteracting = false; 
+        } 
+        return;
+      }
+    } else {
+      // 沒包卻跑進包點 -> 只顯示提示，絕不允許安包！
+      siteIndicator.innerText = `進入 ${inSite} 區（你沒有 SPIKE，快去撿地上的包！）`;
+      if (keys['KeyF']) { keys['KeyF'] = false; } // 封鎖按鍵
+      return;
+    }
+  } 
+  else if (gamePhase === 'play' && spike.planted && myPlayer.team === 'defender' && Math.hypot(myPlayer.x - spike.x, myPlayer.z - spike.z) <= 2.2) {
+    siteIndicator.style.display = 'block'; 
+    siteIndicator.innerText = `靠近 SPIKE：按住 [F] 拆除 SPIKE ${spike.isHalfWay ? '(已過半！)' : ''}`;
+    
+    if (keys['KeyF']) {
+      if (!hasPlayedStartBeep) {
+        let soundName = spike.isHalfWay ? 'defuse_beep_high' : 'defuse_beep_normal';
+        playSound(soundName); setTimeout(() => playSound(soundName), 120);
+        if (isMultiplayerGame && conn && conn.open) conn.send({ type: 'play_sound', soundType: 'plant_beep' });
+        hasPlayedStartBeep = true;
+      }
+      myPlayer.isInteracting = true; actionTimer += dt; 
+      let totalProgress = spike.defuseProgress + actionTimer;
+      if (totalProgress >= 3.5 && !spike.isHalfWay) spike.isHalfWay = true;
+
+      actionBar.style.display = 'block'; 
+      actionText.innerText = spike.isHalfWay ? '拆除 SPIKE (已過半)...' : '拆除 SPIKE...'; 
+      actionProgress.style.width = `${(totalProgress / 7.0) * 100}%`;
+
+      if (totalProgress >= 7.0) { 
+        defuseSpike(true); actionTimer = 0; spike.defuseProgress = 0; spike.isHalfWay = false;
+        hasPlayedStartBeep = false; myPlayer.isInteracting = false; 
+      } 
+      return;
+    } else {
+      if (actionTimer > 0) {
+        let currentTotal = spike.defuseProgress + actionTimer;
+        if (currentTotal < 3.5) { spike.defuseProgress = 0; spike.isHalfWay = false; } 
+        else { spike.defuseProgress = 3.5; spike.isHalfWay = true; }
+        actionTimer = 0; hasPlayedStartBeep = false;
+      }
+    }
+  } 
+  else {
+    let nearestDrop = null; let minDist = 2.4;
+    const now = performance.now();
+    for (let d of droppedWeapons) {
+      if (now - d.dropTime < 600) continue;
+      let dist = Math.hypot(myPlayer.x - d.x, myPlayer.z - d.z);
+      if (dist < minDist) { minDist = dist; nearestDrop = d; }
+    }
+
+    if (nearestDrop) {
+      const w = WEAPONS[nearestDrop.weaponId];
+      const slot = w.type; // 'primary' 或 'secondary'
+      
+      // 💡 核心判定：如果玩家該槽位是「空的」，直接走過去就自動撿起！
+      if (!myPlayer.inventory[slot]) {
+        pickupDroppedWeapon(nearestDrop);
+        return;
+      }
+
+      // 否則如果身上有槍，才顯示提示並讓玩家按 [F] 進行替換撿起
+      siteIndicator.style.display = 'block';
+      siteIndicator.innerText = `按 [F] 拾取 ${w.name} (${nearestDrop.mag}/${nearestDrop.reserve})`;
+      
+      if (keys['KeyF']) { 
+        keys['KeyF'] = false; 
+        pickupDroppedWeapon(nearestDrop); 
+      }
+    } 
+    else {
+      // 靠近地上的 Spike 或者是身上帶著 Spike 的提示
+      if (myPlayer.inventory.spike && !spike.planted && myPlayer.team === 'attacker') {
+        siteIndicator.style.display = 'block';
+        siteIndicator.innerText = `已攜帶 SPIKE！請前往 A 或 B 點安包`;
+      } 
+      else {
+        if (!spike.planted || !((myPlayer.team === 'attacker' && myPlayer.isDead) || (otherPlayers['bot_1'] && otherPlayers['bot_1'].team === 'attacker' && otherPlayers['bot_1'].isDead))) {
+          siteIndicator.style.display = 'none';
+        }
+      }
+    }
+  }
+  
+  // ==================== 放開 [F] (安包中途放開) 時，自動切回最強武器 ====================
+  if (!keys['KeyF']) {
+    if (actionTimer > 0) {
+      if (spike.planted) {
+        let currentTotal = spike.defuseProgress + actionTimer;
+        if (currentTotal < 3.5) { spike.defuseProgress = 0; spike.isHalfWay = false; } 
+        else { spike.defuseProgress = 3.5; spike.isHalfWay = true; }
+      } else {
+        // 剛剛在安包途中放開 F，才需要自動切回槍
+        if (myPlayer.activeSlot === 'spike') {
+          if (myPlayer.inventory.primary) switchWeapon(1);
+          else if (myPlayer.inventory.secondary) switchWeapon(2);
+          else switchWeapon(3);
+        }
+      }
+      actionTimer = 0; hasPlayedStartBeep = false;
+    }
+  }
+  myPlayer.isInteracting = false; actionBar.style.display = 'none';
+}
+
+function plantSpike(x, z, broadcast = true) {
+  if (spike.planted || isRoundEnding) return; 
+  spike.planted = true; spike.x = x; spike.z = z; spike.detonateTimer = 45;
+  spike.defuseProgress = 0; spike.isHalfWay = false;
+
+  // 🔥 關鍵修正：安包成功！清空玩家身上的 Spike 狀態與背包
+  spike.carrier = null;
+  myPlayer.inventory.spike = false;
+
+  // 安包成功後，把手上的模型切回最強武器
+  if (myPlayer.inventory.primary) {
+    switchWeapon(1);
+  } else if (myPlayer.inventory.secondary) {
+    switchWeapon(2);
+  } else {
+    switchWeapon(3);
+  }
+
+  // 更新 UI 介面（自動隱藏右下角第 4 格）
+  updateSlotUI();
+
+  spike.mesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.55), new THREE.MeshLambertMaterial({ color: 0xff4655, emissive: 0xff0022 }));
+  spike.mesh.position.set(x, 0.55, z); scene.add(spike.mesh); 
+
+  const ringGeo = new THREE.RingGeometry(2.0, 2.2, 32);
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.5 });
+  spike.rangeRingMesh = new THREE.Mesh(ringGeo, ringMat);
+  spike.rangeRingMesh.rotation.x = -Math.PI / 2;
+  spike.rangeRingMesh.position.set(x, 0.02, z);
+  scene.add(spike.rangeRingMesh);
+
+  playSound('plant_beep', 0.5, {x: x, y: 0, z: z}); updateTimerUI(spike.detonateTimer);
+  
+  spike.interval = setInterval(() => {
+    spike.detonateTimer--; updateTimerUI(spike.detonateTimer); 
+    if (spike.detonateTimer <= 0) { clearInterval(spike.interval); triggerSpikeExplosion(); }
+  }, 1000);
+  
+  if (broadcast && isMultiplayerGame && conn && conn.open) conn.send({ type: 'plant_spike', x: x, z: z });
+}
+
+function triggerSpikeExplosion() { playSound('explode'); handleRoundEnd('attacker'); }
+
+function defuseSpike(broadcast = true) {
+  if (!spike.planted || isRoundEnding) return;
+  clearInterval(spike.interval); spike.planted = false; spike.defuseProgress = 0; spike.isHalfWay = false;
+  if (spike.mesh) { scene.remove(spike.mesh); spike.mesh = null; } 
+  if (spike.rangeRingMesh) { scene.remove(spike.rangeRingMesh); spike.rangeRingMesh = null; }
+  playSound('defuse_beep_high'); 
+  if (broadcast && isMultiplayerGame && conn && conn.open) conn.send({ type: 'defuse_spike' }); 
+  handleRoundEnd('defender');
+}
+
+// --- AI Bot ---
+function createBot() {
+  // 讓機器人的陣營永遠和玩家相反：玩家是 defender，機器人就是 attacker
+  const botTeam = (myPlayer.team === 'defender') ? 'attacker' : 'defender'; 
+  const botId = 'bot_1';
+  
+  const mesh = createCharacterMesh(botTeam, botId); 
+  // 如果機器人是進攻方，出生點在 45；如果是防守方，出生點在 -45
+  const startZ = (botTeam === 'attacker') ? 45 : -45;
+  
+  mesh.position.set(0, 0, startZ); 
+  scene.add(mesh);
+  
+  otherPlayers[botId] = { 
+      x: 0, z: startZ, hp: 100, team: botTeam, mesh: mesh, isDead: false, 
+      lastShot: 0, path: [], yaw: 0, isDefusing: false, 
+      isNavigatingToSpike: false, isPlanting: false, plantTimer: 0, 
+      currentStrategy: null, hasChosenRoundStrategy: false,
+      defuseProgress: 0, isHalfWay: false, tacticalRole: 'default',
+      fakeDefuseTimer: 0, isFakeDefusing: false, fakeHoldTimer: 0,
+      avoidTimer: 0, avoidDir: 1
+  };
+}
+
+function moveBotTowards(bot, targetX, targetZ, dt, stopDist) {
+  let dx = targetX - bot.x; let dz = targetZ - bot.z;
+  let dist = Math.hypot(dx, dz);
+
+  // 初始化防卡牆變數
+  if (bot.lastPosCheckTimer === undefined) bot.lastPosCheckTimer = 0;
+  if (!bot.stuckCheckPos) bot.stuckCheckPos = { x: bot.x, z: bot.z };
+  if (bot.avoidDir === undefined) bot.avoidDir = 1;
+
+  // 🛡️ 防呆保險：每 0.6 秒檢查一次，若卡死不動則強制重置路徑重新尋路
+  bot.lastPosCheckTimer += dt;
+  if (bot.lastPosCheckTimer > 0.6) {
+    let movedDist = Math.hypot(bot.x - bot.stuckCheckPos.x, bot.z - bot.stuckCheckPos.z);
+    if (movedDist < 0.15 && dist > stopDist) {
+      bot.avoidDir *= -1;
+      bot.path = []; 
+      bot.stuckCheckPos = { x: bot.x, z: bot.z };
+      bot.lastPosCheckTimer = 0;
+      return false;
+    }
+    bot.stuckCheckPos = { x: bot.x, z: bot.z };
+    bot.lastPosCheckTimer = 0;
+  }
+
+  if (dist > stopDist) {
+      let speed = 4.5;
+      let bNextX = bot.x + (dx / dist) * speed * dt;
+      let bNextZ = bot.z + (dz / dist) * speed * dt;
+
+      let bCollideX = false; let bCollideZ = false;
+      for (let w of walls) {
+          if (isColliding(bNextX, bot.z, w)) bCollideX = true;
+          if (isColliding(bot.x, bNextZ, w)) bCollideZ = true;
+      }
+
+      // 如果撞牆，執行平穩的單向側滑
+      if (bCollideX || bCollideZ) {
+          let sideAngle = Math.atan2(-dx, -dz) + (Math.PI / 2) * bot.avoidDir;
+          let avoidSpeed = (dist < 4.0) ? 0.4 : 0.8; 
+          
+          bNextX = bot.x + Math.sin(sideAngle) * speed * dt * avoidSpeed;
+          bNextZ = bot.z + Math.cos(sideAngle) * speed * dt * avoidSpeed;
+
+          let sideCollide = false;
+          for (let w of walls) {
+              if (isColliding(bNextX, bNextZ, w)) { sideCollide = true; break; }
+          }
+          if (sideCollide) { bot.path = []; return false; }
+      }
+
+      bot.x = bNextX; bot.z = bNextZ;
+      bot.mesh.position.set(bot.x, 0, bot.z);
+      bot.yaw = Math.atan2(-dx, -dz);
+      bot.mesh.rotation.y = bot.yaw;
+      return false; 
+  }
+  return true; 
+}
+
+ 
+
+// 💡 共用的進攻方戰術隨機抽選函式
+/*function pickRandomAttackerStrategy(bot) { pickRandomStrategy
+    let roll = Math.random();
+    if (roll < 0.30) {
+        bot.currentStrategy = 'mid_push';
+        bot.strategy = 'slowPlay';
+        bot.path = getAttackerPathByStrategy(bot);
+    } else if (roll < 0.65) {
+        bot.currentStrategy = 'site_A';
+        bot.strategy = Math.random() < 0.5 ? 'rushA' : 'midSplitA';
+        bot.path = getAttackerPathByStrategy(bot);
+    } else {
+        bot.currentStrategy = 'site_B';
+        bot.strategy = Math.random() < 0.5 ? 'rushB' : 'midSplitB';
+        bot.path = getAttackerPathByStrategy(bot);
+    }
+    bot.hasChosenRoundStrategy = true; 
+    console.log(`🎯 [戰術決定] 策略: ${bot.strategy}, 路徑長度: ${bot.path ? bot.path.length : 0}`);
+}*/
+
+function updateBotLogic(dt, now) {
+  if (gameMode === 'range') return;
+  const bot = otherPlayers['bot_1']; if (!bot || bot.isDead || isRoundEnding) return;
+  
+  // 買槍階段：重置電腦策略與路徑
+  if (gamePhase === 'buy'){
+      bot.isLockedPatrolRoute = false;     // 重置巡邏鎖定
+      bot.hasChosenRoundStrategy = false;
+      bot.hasChosenDefenderPath = false; // 💡 買槍階段重置防守方路徑鎖定
+      bot.hasLockedRetakeFinal = false; // 💡 買槍階段重置防守方最後決戰路徑鎖定
+      bot.currentStrategy = null;
+      bot.strategy = null;
+      bot.path = [];
+      return; 
+  }
+  
+  let dx = myPlayer.x - bot.x; let dz = myPlayer.z - bot.z; let dist = Math.hypot(dx, dz); let yawToPlayer = Math.atan2(-dx, -dz);
+  
+  let canSeePlayer = false;
+  if (dist < 40 && !myPlayer.isDead) {
+    let botEyePos = new THREE.Vector3(bot.x, 1.5, bot.z); let playerEyePos = new THREE.Vector3(myPlayer.x, myPlayer.y, myPlayer.z);
+    let rayDir = playerEyePos.clone().sub(botEyePos).normalize();
+    let ray = new THREE.Raycaster(botEyePos, rayDir);
+    let intersects = ray.intersectObjects(collisionMeshes, true); 
+    let ray3DDist = playerEyePos.distanceTo(botEyePos);
+    if (intersects.length === 0 || intersects[0].distance > ray3DDist) { canSeePlayer = true; }
+  }
+
+  let heardNoise = (!myPlayer.isDead && dist < 22 && (myPlayer.isMoving && !myPlayer.isWalking && !myPlayer.isCrouching));
+
+  if (bot.x !== bot.lastX || bot.z !== bot.lastZ) {
+    bot.stepTimer = (bot.stepTimer || 0) + dt;
+    if (bot.stepTimer >= 0.35) {
+      playSound('footstep', 0.35, {x: bot.x, y: 0, z: bot.z});
+      if (isMultiplayerGame && conn && conn.open) conn.send({ type: 'play_sound', soundType: 'footstep', vol: 0.35, pos: {x: bot.x, y: 0, z: bot.z} });
+      bot.stepTimer = 0;
+    }
+  }
+  bot.lastX = bot.x; bot.lastZ = bot.z;
+
+  // ==========================================
+  // 🎯 進攻方（Attacker）邏輯
+  // ==========================================
+  if (!spike.planted && bot.team === 'attacker') {
+      
+      // 1. 如果炸彈在地上，必須先走過去撿包！
+      if (spike.isDroppedOnGround) {
+          let distToSpike = Math.hypot(spike.x - bot.x, spike.z - bot.z);
+          
+          if (distToSpike < 2.0) {
+              // 走到包旁邊了，撿起來！
+              spike.isDroppedOnGround = false;
+              spike.carrier = bot.id; 
+              if (spike.dropMesh) {
+                  scene.remove(spike.dropMesh);
+                  spike.dropMesh = null;
+              }
+              // 撿完包瞬間，隨機抽戰術並計算進攻路線
+              pickRandomStrategy(bot);
+              console.log(`🤖 [Bot] 成功走到包旁邊並撿起 SPIKE！隨機抽到戰術 [${bot.strategy}] 並出發！`);
+          } 
+          else {
+              // 還沒走到包旁邊，先朝著包的座標走過去！
+              bot.currentStrategy = 'get_spike';
+              moveBotTowards(bot, spike.x, spike.z, dt, 1.5);
+          }
+          
+          return; // 正在去撿包的路上，這一幀先不執行後面的進攻戰術與打人
+      }
+      // 2. 正常開局：如果還沒抽過戰術，抽一次
+      else if (!bot.hasChosenRoundStrategy) {
+          pickRandomStrategy(bot);
+      }
+
+      // 3. 如果看見玩家，優先停下來開槍打人！(🔥 務必在這裡加上：看見人立刻強制中斷安包並歸零計時！)
+      if (canSeePlayer&& !myPlayer.isDead) {
+          bot.isPlanting = false; 
+          bot.plantTimer = 0; // 只要開戰或看見人，安包進度立刻歸零！
+
+          let aimYaw = yawToPlayer;
+          bot.mesh.rotation.y = aimYaw; bot.yaw = aimYaw; 
+          if (now - bot.lastShot > 1200) { 
+              playSound('bot_shoot', 0.5, {x: bot.x, y: 0, z: bot.z});
+              let shootDir = new THREE.Vector3(-Math.sin(aimYaw), 0, -Math.cos(aimYaw));
+              createTracerLine(bot.x, 1.5, bot.z, shootDir, false, dist);
+              if (Math.random() < 0.3) { 
+                  let isHead = Math.random() < 0.05; 
+                  let dmg = isHead ? 100 : 26;
+                  applyDamage(myPlayer.id, dmg, isHead, 'Vandal');
+              }
+              bot.lastShot = now;
+          }
+      } 
+      // 4. 沒看見玩家時，執行移動或安包
+      else {
+          let targetSite = (bot.currentStrategy === 'site_B') ? sites.B : sites.A;
+          let distToSite = Math.hypot(targetSite.x - bot.x, targetSite.z - bot.z);
+
+          // 💡 包點的實際半徑是 sites.A.radius（即 8.0 公尺）
+          // 我們設定一個「安全安包半徑」（例如 6.0 公尺），逼它走進去一點點再開始下包
+          let safePlantRadius = (targetSite.radius || 8.0) - 2.0; 
+          let isInsideSite = (distToSite <= safePlantRadius);
+
+          if (bot.currentStrategy !== 'get_spike' && isInsideSite) {
+              bot.path = []; // 確實深入包點內！清空路徑，準備安包
+
+              if (!bot.isPlanting) {
+                  bot.isPlanting = true; 
+                  bot.plantTimer = 0;
+                  console.log("💣 [安包準備] 進入包點內，開始進行 4 秒安包倒數...");
+              }
+              
+              bot.plantTimer += dt;
+              
+              // 💡 4秒安包時間到！
+              if (bot.plantTimer >= 4.0) {
+                  // 🎯 直接使用它當下站立的座標 (bot.x, bot.z) 下包，點內的任何位置都能放！
+                  plantSpike(bot.x, bot.z, true);
+                  
+                  bot.isPlanting = false; 
+                  bot.plantTimer = 0;
+                  bot.currentStrategy = 'defend_spike';
+                  console.log("✅ [安包完成] 成功在站立位置安裝 Spike！轉為守包狀態！");
+              }
+          } 
+          else {
+              // 如果還沒走到安全區內，或是中途走出去/開槍中斷，立刻將 4 秒計時歸零！
+              if (bot.isPlanting) {
+                  console.log("⚠️ [安包中斷] 離開了包點範圍，安包進度歸零！");
+              }
+              bot.isPlanting = false; 
+              bot.plantTimer = 0;
+
+              // 沿著路徑移動
+              if (bot.path && bot.path.length > 0) {
+                  let nextNodeId = bot.path[0];
+                  let wp = navNodes.find(n => n.id === nextNodeId);
+                  if (wp && typeof wp.x !== 'undefined' && typeof wp.z !== 'undefined') {
+                      if (moveBotTowards(bot, wp.x, wp.z, dt, 1.0)) {
+                          bot.path.shift(); 
+                      }
+                  } else {
+                      bot.path = [];
+                  }
+              } else if (bot.currentStrategy !== 'get_spike') {
+                  let siteNodeId = (bot.currentStrategy === 'site_B') ? 6 : 5;
+                  bot.path = findPath(getNearestNode(bot.x, bot.z), siteNodeId) || [];
+              }
+          }
+      }
+      
+      return; 
+  }
+
+  // ==========================================
+  // 🛡️ 防守方（Defender）邏輯
+  // ==========================================
+  if (bot.team === 'defender' && !canSeePlayer) {
+    if (spike.planted) {
+      let sDx = spike.x - bot.x; let sDz = spike.z - bot.z; let sDist = Math.hypot(sDx, sDz);
+      let distToA = Math.hypot(spike.x - sites.A.x, spike.z - sites.A.z);
+      let distToB = Math.hypot(spike.x - sites.B.x, spike.z - sites.B.z);
+
+      if (!bot.wasSpikePlanted) {
+          bot.path = [];
+          bot.isRetaking = false;
+          bot.wasSpikePlanted = true;
+          console.log("🚨 [突發狀況] 發現敵方已下包！立刻強制中斷當前行動準備回防！");
+      }
+
+      if (sDist <= 2.0) {
+        bot.isNavigatingToSpike = false;
+        bot.isRetaking = false;
+        bot.path = []; 
+        bot.tacticalRole = 'default';
+        bot.wasSpikePlanted = false;
+        bot.yaw = Math.atan2(-sDx, -sDz);
+        bot.mesh.rotation.y = bot.yaw;
+
+        if (bot.isFakeDefusing) {
+          bot.fakeHoldTimer -= dt;
+          if (bot.fakeHoldTimer <= 0) bot.isFakeDefusing = false; 
+          return;
+        }
+
+        if (!bot.isDefusing) { 
+          bot.isDefusing = true; 
+          let defuseSound = (bot.isHalfWay || bot.defuseProgress >= 3.5) ? 'defuse_beep_high' : 'defuse_beep_normal';
+          playSound(defuseSound, 0.4, {x: spike.x, y: 0, z: spike.z});
+          setTimeout(() => playSound(defuseSound, 0.4, {x: spike.x, y: 0, z: spike.z}), 120);
+        }
+
+        // 💡 關鍵修正：只要因為開槍/打架中斷拆包，立刻套用 3.5 秒的歸零/半程存檔規則！
+        if (bot.isDefusing&& (canSeePlayer || heardNoise)) {
+            bot.isDefusing = false;
+            if (bot.defuseProgress < 3.5) {
+                bot.defuseProgress = 0;
+                bot.isHalfWay = false;
+            } else {
+                bot.defuseProgress = 3.5;
+                bot.isHalfWay = true;
+            }
+            console.log(`🔫 [開槍中斷] 為了迎敵而放開拆包！當前進度重置/保留至: ${bot.defuseProgress}秒`);
+        }
+
+        bot.defuseProgress += dt;
+        if (bot.defuseProgress >= 3.5 && !bot.isHalfWay) bot.isHalfWay = true;
+        
+        if (heardNoise && bot.defuseProgress < 3.5 && Math.random() < 0.25) {
+          bot.isDefusing = false; bot.defuseProgress = 0; bot.isHalfWay = false;
+          bot.isFakeDefusing = true; bot.fakeHoldTimer = 3.0; 
+        }
+
+        if (bot.defuseProgress >= 7.0) { 
+          defuseSpike(true); bot.isDefusing = false; bot.defuseProgress = 0; bot.isHalfWay = false;
+        }
+        return; 
+      }
+
+      bot.isDefusing = false;
+
+      if (!bot.isRetaking) {
+          bot.path = (distToA < distToB) ? findPathToA(bot) : findPathToB(bot);
+          bot.isRetaking = true;
+          console.log(`💣 [已下包回防] 鎖定完整路線，出發！目標: ${distToA < distToB ? '回防 A 點' : '回防 B 點'}`);
+      }
+
+      if (bot.path && bot.path.length > 0) {
+          let nextNodeId = bot.path[0];
+          let wp = navNodes.find(n => n.id === nextNodeId);
+          if (wp && typeof wp.x !== 'undefined' && typeof wp.z !== 'undefined') {
+              if (moveBotTowards(bot, wp.x, wp.z, dt, 1.5)) {
+                  console.log(`✅ [回防移動] 成功到達節點 ID: ${nextNodeId}，切換下一個`);
+                  bot.path.shift();
+              }
+          } else {
+              console.warn(`⚠️ 警告：路徑中包含無效的節點 ID [${nextNodeId}]，重置路徑`);
+              bot.path = [];
+          }
+      } else {
+          // 💡 關鍵修復：不要讓它盲目直線衝撞！改用 findPath 算出繞過障礙物的完整導航路徑
+          let currentNearest = getNearestNode(bot.x, bot.z);
+          let targetNode = getNearestNode(spike.x, spike.z); // 或目標點節點
+          bot.path = findPath(currentNearest, targetNode) || [];
+          
+          console.log(`🎯 [終點接續優化] 預設回防路徑已走完，重新透過導航網格計算通往節點 [${targetNode}] 的繞路路徑`);
+      }
+      return; 
+    } else {
+      bot.wasSpikePlanted = false;
+    }
+
+    // 💡 修正：只有在「沒有正在回防、沒有在拆包、且非特殊任務」的閒置狀態下，才允許被聽聲辨位觸發
+  if (heardNoise && bot.tacticalRole === 'default' && !spike.planted && !bot.isRetaking) {
+      bot.tacticalRole = 'retake';
+      bot.path = (Math.random() < 0.5) ? findPathToA(bot) : findPathToB(bot);
+      console.log("👂 [聽見聲音] 防守方觸發聽聲辯位回防");
+      return;
+  }
+  }
+
+  // 預設索敵開火與移動
+  if (canSeePlayer || heardNoise) {
+    bot.isPlanting = false; bot.plantTimer = 0;
+    
+    bot.isNavigatingToSpike = false; bot.isFakeDefusing = false;
+    if (!canSeePlayer && bot.tacticalRole === 'default') {
+      bot.path = findPath(getNearestNode(bot.x, bot.z), getNearestNode(myPlayer.x, myPlayer.z));
+    }
+    
+    let aimYaw = canSeePlayer ? yawToPlayer : Math.atan2(-(myPlayer.x - bot.x), -(myPlayer.z - bot.z));
+    bot.mesh.rotation.y = aimYaw; bot.yaw = aimYaw; 
+    
+    if (canSeePlayer && now - bot.lastShot > 1200) { 
+      playSound('bot_shoot', 0.5, {x: bot.x, y: 0, z: bot.z});
+      let shootDir = new THREE.Vector3(-Math.sin(aimYaw), 0, -Math.cos(aimYaw));
+      createTracerLine(bot.x, 1.5, bot.z, shootDir, false, dist);
+      
+      if (Math.random() < 0.3) { 
+        let isHead = Math.random() < 0.05; 
+        let dmg = isHead ? 100 : 26;
+        applyDamage(myPlayer.id, dmg, isHead, 'Vandal');
+      }
+      bot.lastShot = now;
+    }
+  }
+
+  // ==========================================
+  // 🌐 所有人共用的導航移動與路徑消耗區塊
+  // ==========================================
+  if (!bot.isDefusing && !bot.isPlanting && !bot.isFakeDefusing) {
+      
+      // 💡 關鍵修正：如果是「進攻方」且「已經下包」，下完包後直接留在包點附近架槍守包，絕對不準亂跑！
+      if (spike.planted && bot.team === 'attacker') {
+          let sDist = Math.hypot(spike.x - bot.x, spike.z - bot.z);
+          if (sDist > 4.0) {
+              // 如果離包太遠，稍微走近一點點到包點附近守
+              let nearestSiteNode = getNearestNode(spike.x, spike.z);
+              bot.path = findPath(getNearestNode(bot.x, bot.z), nearestSiteNode) || [];
+          } else {
+              bot.path = []; // 清空路徑，留在原地架槍防守！
+          }
+      }
+      else {
+          // 如果路徑為空時的補救處理
+          if (!bot.path || bot.path.length === 0) {
+              bot.isLockedPatrolRoute = false;// 💡 解除巡邏鎖定，允許重新抽籤
+
+              if (bot.team === 'attacker' && !spike.planted) {
+              
+              // 1. 剛執行完「中路慢打」或「控大路」，且還沒開始 20 秒計時
+              if ((bot.currentStrategy === 'mid_push' || bot.currentStrategy === 'controlling_long_A' || bot.currentStrategy === 'controlling_long_B') && !bot.isHoldingSlowPlay) {
+                  bot.isHoldingSlowPlay = true;
+                  bot.slowPlayHoldTimer = 20.0; // 設定 20 秒原地蹲點/控場
+                  console.log(`⏱️ [戰術控場] 已到達指定位置（${bot.currentStrategy}），開始執行 20 秒蹲點架槍...`);
+              } 
+              // 2. 正在進行 20 秒倒數中
+              else if (bot.isHoldingSlowPlay) {
+                  bot.slowPlayHoldTimer -= dt;
+                  
+                  // 20 秒時間到！解除控場，發起總攻或轉點
+                  if (bot.slowPlayHoldTimer <= 0) {
+                      bot.isHoldingSlowPlay = false;
+                      console.log("🚀 [戰術控場] 20秒時間到！解除控場，準備發起總攻！");
+
+                      let targetSite = Math.random() < 0.5 ? 'A' : 'B';
+                      if (bot.currentStrategy === 'controlling_long_A') {
+                          targetSite = Math.random() < 0.7 ? 'A' : 'B';
+                      } else if (bot.currentStrategy === 'controlling_long_B') {
+                          targetSite = Math.random() < 0.7 ? 'B' : 'A';
+                      }
+
+                      bot.currentStrategy = (targetSite === 'A') ? 'site_A' : 'site_B';
+                      let siteNodeId = (targetSite === 'A') ? 5 : 6;
+                      bot.path = findPath(getNearestNode(bot.x, bot.z), siteNodeId) || [siteNodeId];
+                      console.log(`⚡ [總攻發起] 目標鎖定 ${targetSite} 點，衝鋒！`);
+                  }
+              } 
+              // 3. 一般戰術（如直接 Rush）走完時的處理
+              else {
+                  if (bot.hasChosenRoundStrategy) {
+                      let siteNodeId = (bot.currentStrategy === 'site_B') ? 6 : 5;
+                      bot.path = findPath(getNearestNode(bot.x, bot.z), siteNodeId) || [];
+                  }
+              }
+          }
+
+
+            else if (bot.team === 'defender') {
+                  if (spike.planted) {
+                      let sDist = Math.hypot(spike.x - bot.x, spike.z - bot.z);
+                      let distToA = Math.hypot(spike.x - sites.A.x, spike.z - sites.A.z);
+                      let distToB = Math.hypot(spike.x - sites.B.x, spike.z - sites.B.z);
+
+                      if (sDist <= 4.0) {
+          // 距離 Spike 4 公尺內，直接朝 Spike 移動準備拆包
+          moveBotTowards(bot, spike.x, spike.z, dt, 1.5);
+      } else {
+          // 💡 關鍵修正：如果路徑已經走完（或還沒設定），絕對不准再呼叫會重複抽籤的 findPathToA/B！
+          // 改為「如果還沒有導航路徑，就只用最單純的網格尋路抓一次目標點，並用標記鎖定」
+          if (!bot.path || bot.path.length === 0) {
+              if (!bot.hasLockedRetakeFinal) {
+                  let targetNode = (distToA < distToB) ? 5 : 6; // A點節點5 或 B點節點6
+                  bot.path = findPath(getNearestNode(bot.x, bot.z), targetNode) || [];
+                  bot.hasLockedRetakeFinal = true; // 鎖定！不准再重複重抽
+                  console.log(`🎯 [終點接續] 繞後路徑已走完，鎖定最短導航網格直奔包點節點 [${targetNode}]`);
+              }
+          }
+
+          // 順順地沿著鎖定的路徑走
+          if (bot.path && bot.path.length > 0) {
+              let nextNodeId = bot.path[0];
+              let wp = navNodes.find(n => n.id === nextNodeId);
+              if (wp && typeof wp.x !== 'undefined' && typeof wp.z !== 'undefined') {
+                  if (moveBotTowards(bot, wp.x, wp.z, dt, 1.5)) {
+                      bot.path.shift();
+                  }
+              } else {
+                  bot.path = [];
+              }
+          } else {
+              // 萬一真的沒路徑，直接向 Spike 直奔
+              moveBotTowards(bot, spike.x, spike.z, dt, 1.5);
+          }
+      }
+                  } else {
+    // 💡 關鍵修復：只有當「還沒有巡邏路徑」時，才隨機抽籤指派一條完整的巡邏線
+              if (!bot.isLockedPatrolRoute ) {
+                  let newPatrolPath = (Math.random() < 0.5) ? findPathToA(bot) : findPathToB(bot);
+                  if (newPatrolPath && newPatrolPath.length > 0) {
+                      bot.path = newPatrolPath;
+                      bot.isLockedPatrolRoute = true; // 鎖定！在走完這條完整的繞後路線之前，不准重抽！
+                      console.log(`🛡️ [防守巡邏] 成功指派路線！總共有 ${bot.path.length} 個節點，路徑內容：`, bot.path);
+                  } else {
+                      bot.path = [getNearestNode(bot.x, bot.z)];
+                  }
+              }
+          }
+              } 
+              else if (bot.team === 'attacker' && bot.hasChosenRoundStrategy) {
+                  let siteNodeId = (bot.currentStrategy === 'site_B') ? 6 : 5;
+                  bot.path = findPath(getNearestNode(bot.x, bot.z), siteNodeId) || [];
+              }
+          }
+      }
+      
+      // 只要身上有 path，就乖乖照著往前走，並印出到達的節點 ID
+      if (bot.path && bot.path.length > 0) {
+        let nextNodeId = bot.path[0];
+        let wp = navNodes.find(n => n.id === nextNodeId);
+        
+        if (wp && typeof wp.x !== 'undefined' && typeof wp.z !== 'undefined') {
+            if (moveBotTowards(bot, wp.x, wp.z, dt, 1.0)) {
+                console.log(`✅ [移動到達] 成功到達節點 ID: ${nextNodeId}，切換下一個點`);
+                bot.path.shift(); 
+            }
+        } else {
+            console.warn(`⚠️ 警告：路徑中包含無效節點 ID [${nextNodeId}]，重置路徑`);
+            bot.path = [];
+        }
+      }
+  }
+}
+
+// --- 3D 主渲染迴圈 ---
+function startRenderLoop() {
+  let lastTime = performance.now();
+  function animate(now) {
+    requestAnimationFrame(animate); const dt = (now - lastTime) / 1000; lastTime = now;
+    
+    if (!mouseIsDown && now - myPlayer.lastShotTime > 380 && myPlayer.recoilIndex > 0) myPlayer.recoilIndex = 0;
+
+    if (gunGroup) {
+      gunGroup.position.z += (0 - gunGroup.position.z) * 14 * dt;
+      gunGroup.rotation.x += (0 - gunGroup.rotation.x) * 14 * dt;
+    }
+
+    const ch = document.getElementById('crosshair');
+    if (ch) {
+      let scale = 0.75; // 預設原地站立的基準大小
+      
+      if (!myPlayer.isGrounded) {
+        scale += 1.5; // 跳躍中
+      } else if (myPlayer.isMoving) {
+        if (myPlayer.isCrouching) {
+          scale += 0.15; // 移動中的蹲走
+        } else if (myPlayer.isWalking) {
+          scale += 0.4;  // 靜走時 (Shift)
+        } else {
+          scale += 0.9;  // 跑步時
+        }
+      } else {
+        // 這裡代表「地上」且「沒有移動」（也就是靜止狀態）
+        if (myPlayer.isCrouching) {
+          scale -= 0.1; // 🛑 原地蹲下不動：比基準 0.75 更小（0.65），極度穩定！
+        }
+      }
+
+      scale += Math.min(1.2, myPlayer.recoilIndex * 0.1);
+      ch.style.transform = `translate(-50%, -50%) scale(${scale.toFixed(2)})`;
+    }
+
+    droppedWeapons.forEach(d => { if (d.mesh) d.mesh.rotation.y += dt * 1.8; });
+
+    if (gameMode === 'range') {
+      const dmgHud = document.getElementById('range-damage-hud');
+      if (rangeDummyLastHitTime > 0 && (now - rangeDummyLastHitTime > 10000)) {
+        rangeDummyDamage = 0;
+        rangeDummyLastHitTime = 0;
+      }
+      if (rangeDummyDamage > 0 && otherPlayers['range_dummy']) {
+        let dummyHeadPos = new THREE.Vector3(0, 2.1, -24);
+        let vector = dummyHeadPos.project(camera);
+        let x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+        let y = (-(vector.y * 0.5) + 0.5) * window.innerHeight;
+        if (vector.z < 1) {
+          dmgHud.style.display = 'block';
+          dmgHud.style.left = x + 'px';
+          dmgHud.style.top = y + 'px';
+          dmgHud.innerText = `累積傷害: ${rangeDummyDamage}`;
+        } else {
+          dmgHud.style.display = 'none';
+        }
+      } else {
+        dmgHud.style.display = 'none';
+      }
+    }
+
+    if (mouseIsDown && isLocked) {
+      const wId = myPlayer.activeSlot === 'melee' ? 'knife' : myPlayer.inventory[myPlayer.activeSlot];
+      const activeW = WEAPONS[wId];
+      if (activeW && activeW.auto) tryShoot(now);
+    }
+    
+    if (isLocked) {
+      updateMovement(dt); 
+      if (gameMode !== 'range') updateBotLogic(dt, now);
+      if (spike.planted && spike.mesh) { spike.mesh.rotation.y += dt * 3; spike.mesh.position.y = 0.55 + Math.sin(now * 0.005) * 0.1; }
+    }
+    renderer.render(scene, camera);
+  }
+  animate(lastTime);
+}
+
+function onWindowResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+
+// 1. 記錄傷害的函式
+function recordDamage(attackerId, targetId, targetName, damage, hitPart, weaponUsed) {
+  // 排除自己打自己的無效數據
+  if (attackerId === targetId) return;
+  if (attackerId === myPlayer.id && targetId === myPlayer.id) return;
+
+  // 1. 決定對手 ID
+  let enemyId = (attackerId === myPlayer.id) ? targetId : attackerId;
+  if (enemyId === myPlayer.id) {
+    enemyId = (attackerId === myPlayer.id) ? targetId : attackerId;
+  }
+
+  // 防呆：合併現有對象
+  let existingKeys = Object.keys(currentRoundCombatData);
+  if (existingKeys.length > 0 && !currentRoundCombatData[enemyId]) {
+    enemyId = existingKeys[0];
+  }
+
+  // 🎯 絕對強制的名稱抓取邏輯
+  let realName = 'Agent';
+  
+  // 優先順序 1：從函式直接傳進來的 targetName / attackerName
+  if (targetName && targetName !== 'Agent' && targetName !== '敵人') {
+    realName = targetName;
+  } 
+  // 優先順序 2：從 otherPlayers 裡面找
+  else if (otherPlayers[enemyId] && otherPlayers[enemyId].name && otherPlayers[enemyId].name !== 'Agent') {
+    realName = otherPlayers[enemyId].name;
+  } 
+  // 優先順序 3：從 roomState.players 裡面直接對應 ID 抓名字（保證抓到大廳設定的名稱！）
+  else if (roomState && roomState.players) {
+    let pObj = roomState.players.find(x => x.id === enemyId);
+    if (pObj && pObj.name) {
+      realName = pObj.name;
+    }
+  }
+
+  // 如果還是找不到，抓 otherPlayers 裡面任何一個不是 Agent 的名字
+  if (realName === 'Agent') {
+    let altKey = Object.keys(otherPlayers).find(k => otherPlayers[k].name && otherPlayers[k].name !== 'Agent');
+    if (altKey) {
+      realName = otherPlayers[altKey].name;
+    }
+  }
+
+  // 如果該對手的戰報結構還不存在，初始化它
+  if (!currentRoundCombatData[enemyId]) {
+    currentRoundCombatData[enemyId] = {
+      name: realName,
+      myWeapon: '',     
+      enemyWeapon: '',  
+      dealtDmg: 0,
+      hits: { head: 0, body: 0, leg: 0 },
+      takenDmg: 0,
+      takenHits: { head: 0, body: 0, leg: 0 }
+    };
+  }
+  
+  // 🎯 隨時更新為最新、最正確的真實暱稱
+  if (realName && realName !== 'Agent') {
+    currentRoundCombatData[enemyId].name = realName;
+  }
+  
+  // 累積傷害與命中次數
+  if (attackerId === myPlayer.id) {
+    currentRoundCombatData[enemyId].dealtDmg += damage;
+    if (weaponUsed) currentRoundCombatData[enemyId].myWeapon = weaponUsed;
+    
+    if (hitPart === 'head') {
+      currentRoundCombatData[enemyId].hits.head++;
+    } else if (hitPart === 'leg' || hitPart === 'arm') {
+      currentRoundCombatData[enemyId].hits.leg++;
+    } else {
+      currentRoundCombatData[enemyId].hits.body++;
+    }
+  } 
+  else {
+    currentRoundCombatData[enemyId].takenDmg += damage;
+    if (weaponUsed) currentRoundCombatData[enemyId].enemyWeapon = weaponUsed;
+    
+    if (hitPart === 'head') {
+      currentRoundCombatData[enemyId].takenHits.head++;
+    } else if (hitPart === 'leg' || hitPart === 'arm') {
+      currentRoundCombatData[enemyId].takenHits.leg++;
+    } else {
+      currentRoundCombatData[enemyId].takenHits.body++;
+    }
+  }
+}
+
+// 回合結束時結算戰報並顯示面板
+function finalizeCombatReport() {
+  // 過濾掉無效或沒有交火的數據（例如自己、或傷害皆為 0 的記錄）
+  let filteredData = {};
+  Object.entries(currentRoundCombatData).forEach(([id, data]) => {
+    // 必須要有造成傷害或受到傷害，且不能是記錄到自己本身
+    if ((data.dealtDmg > 0 || data.takenDmg > 0) && id !== myPlayer.id) {
+      filteredData[id] = data;
+    }
+  });
+
+  lastRoundCombatReport = filteredData;
+  currentRoundCombatData = {}; // 清空，準備記錄下一局
+  
+  let hasAnyCombat = Object.values(lastRoundCombatReport).some(data => data.dealtDmg > 0 || data.takenDmg > 0);
+
+  if (!hasAnyCombat || Object.keys(lastRoundCombatReport).length === 0) {
+    document.getElementById('combat-report-panel').style.display = 'none';
+    return;
+  }
+  
+  renderCombatReportUI();
+  
+  // 顯示戰報面板（在買槍階段顯示）
+  document.getElementById('combat-report-panel').style.display = 'block';
+}
+
+// 3. 渲染戰報畫面的 UI 函式
+function renderCombatReportUI() {
+  const listDiv = document.getElementById('combat-report-list');
+  listDiv.innerHTML = '';
+  
+  let filteredData = {};
+  Object.entries(lastRoundCombatReport).forEach(([id, data]) => {
+    if ((data.dealtDmg > 0 || data.takenDmg > 0) && id !== myPlayer.id) {
+      filteredData[id] = data;
+    }
+  });
+
+  const entries = Object.entries(filteredData);
+  if (entries.length === 0) {
+    listDiv.innerHTML = `<div style="text-align: center; color: #777; padding: 10px; font-size: 11px;">上一局無交火紀錄</div>`;
+    return;
+  }
+
+  entries.forEach(([id, data]) => {
+    // 🎯 判斷邏輯：只有當對方有對你造成傷害（takenDmg > 0）且有記錄到武器時才顯示
+    let weaponDisplay = (data.takenDmg > 0 && data.enemyWeapon) ? `🔫 ${data.enemyWeapon}` : '';
+
+    listDiv.innerHTML += `
+      <div class="combat-row">
+        <div class="combat-col-dmg" style="color: ${data.dealtDmg > 0 ? '#ff4655' : '#8b978f'}">${data.dealtDmg}</div>
+        <div class="combat-col-hits">
+          <div>${data.hits.head} 🎯</div>
+          <div>${data.hits.body} 👕</div>
+          <div>${data.hits.leg} 👖</div>
+        </div>
+        <div class="combat-col-target">
+          <div>${data.name}</div>
+          <div style="font-size: 9px; color: #ffaa00; margin-top: 2px; font-weight: bold;">${weaponDisplay}</div>
+        </div>
+        <div class="combat-col-hits" style="text-align: left;">
+          <div>${data.takenHits.head} 🎯</div>
+          <div>${data.takenHits.body} 👕</div>
+          <div>${data.takenHits.leg} 👖</div>
+        </div>
+        <div class="combat-col-dmg" style="color: ${data.takenDmg > 0 ? '#369fff' : '#8b978f'}; text-align: right;">${data.takenDmg}</div>
+      </div>
+    `;
+  });
+}
+
+</script>
+</body>
+</html>
