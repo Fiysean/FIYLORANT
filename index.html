@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FIYLORANT v26.11.3</title>
+  <title>FIYLORANT v26.11.5</title>
   <style>
 
     /* 仿特戰英豪對戰報告面板（移到畫面中間偏右） */
@@ -120,11 +120,7 @@
 
     #site-indicator { position: absolute; top: 80px; left: 50%; transform: translateX(-50%); font-size: 18px; font-weight: bold; color: #ffaa00; text-shadow: 0 0 10px rgba(0,0,0,0.8); display: none; }
 
-    #instructions {
-      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      background: rgba(0,0,0,0.85); padding: 25px; border-radius: 8px; text-align: center;
-      cursor: pointer; display: none; border: 1px solid #ff4655; z-index: 50;
-    }
+    
 
     /* 商店與訓練場槍械選單 UI */
     #shop-menu {
@@ -144,6 +140,157 @@
     .shop-item .stats { color: #8b978f; font-size: 11px; }
     #close-shop { margin-top: 20px; padding: 12px 30px; background: #ff4655; color: #fff; border: none; font-size: 16px; font-weight: bold; border-radius: 4px; cursor: pointer; }
     #close-shop:hover { background: #d33240; }
+
+
+        /* 特戰黑紅美學設定選單背景 */
+    .esc-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(10, 15, 24, 0.85);
+      backdrop-filter: blur(8px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+      font-family: 'Rajdhani', sans-serif, system-ui;
+      color: #ece8e1;
+    }
+
+    .esc-container {
+      width: 550px;
+      background: #1f2326;
+      border: 1px solid #383e45;
+      border-radius: 4px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+      overflow: hidden;
+    }
+
+    /* 頂部分頁列 */
+    .esc-tabs {
+      display: flex;
+      justify-content: center;
+      background: #16191c;
+      border-bottom: 1px solid #383e45;
+    }
+
+    .esc-tab {
+      padding: 15px 30px;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: #ece8e1;
+      border-bottom: 3px solid #ff4655; /* 特戰紅指標 */
+      cursor: pointer;
+    }
+
+    /* 內容區塊 */
+    .esc-content {
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+      gap: 25px;
+    }
+
+    .esc-setting-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .esc-label {
+      font-size: 16px;
+      font-weight: 600;
+      color: #bcbcbc;
+    }
+
+    .esc-control-group {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .esc-slider {
+      width: 180px;
+      accent-color: #ff4655;
+      cursor: pointer;
+    }
+
+    .esc-value-display {
+      width: 60px;
+      text-align: right;
+      font-family: monospace;
+      font-size: 15px;
+      color: #ff4655;
+      cursor: pointer;
+      padding: 2px 5px;
+      border-radius: 3px;
+      transition: background 0.2s;
+    }
+
+    .esc-value-display:hover {
+      background: rgba(255, 70, 85, 0.15);
+    }
+
+    /* 按鈕樣式 */
+    .esc-action-buttons {
+      display: flex;
+      gap: 15px;
+      margin-top: 15px;
+      border-top: 1px solid #383e45;
+      padding-top: 20px;
+    }
+
+    .esc-btn {
+      flex: 1;
+      padding: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      border: none;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .primary-btn { background: #ece8e1; color: #0f141d; }
+    .primary-btn:hover { background: #ffffff; }
+
+    .secondary-btn { background: #2f353b; color: #ece8e1; }
+    .secondary-btn:hover { background: #3c434b; }
+
+    .danger-btn { background: #ff4655; color: #ffffff; }
+    .danger-btn:hover { background: #ff5864; }
+
+    .esc-footer {
+      padding: 15px 30px;
+      background: #16191c;
+      border-top: 1px solid #383e45;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    /* 退出確認彈窗 */
+    .confirm-dialog {
+      background: #1f2326;
+      border: 1px solid #ff4655;
+      padding: 25px 35px;
+      border-radius: 4px;
+      text-align: center;
+      width: 380px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.8);
+    }
+    .confirm-dialog h3 { margin-bottom: 10px; color: #ff4655; }
+    .confirm-dialog p { margin-bottom: 20px; color: #bcbcbc; font-size: 14px; }
+    .confirm-buttons { display: flex; gap: 15px; }          
+
+
+
+
+
   </style>
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -154,11 +301,15 @@
 <div id="canvas-container"></div>
 <div id="range-damage-hud">累積傷害: 0</div>
 
+
+
+
+
 <!-- 主選單 UI -->
 <div id="main-menu" class="overlay">
   <div class="panel">
     <h1>FIYLORANT</h1>
-    <p>v26.11.3</p>
+    <p>v26.11.5</p>
     
     <div class="form-group">
       <label>玩家暱稱</label>
@@ -191,6 +342,33 @@
     </div>
     <button class="btn-secondary" style="width: 100%;" onclick="joinRoom()">加入房間</button>
     
+    <!-- 📢 主頁右側公告面板 -->
+<div id="home-patch-notes" style="position: absolute; right: 30px; top: 100px; width: 320px; max-height: 400px; background: rgba(15, 20, 29, 0.85); border: 1px solid rgba(0,255,204,0.3); border-radius: 6px; padding: 15px; color: #fff; z-index: 1000; backdrop-filter: blur(5px); font-family: sans-serif; text-align: left;">
+  
+  <!-- 標題與版本號 -->
+  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; margin-bottom: 10px;">
+    <span style="color: #00ffcc; font-weight: bold; font-size: 14px;">📢 版本更新公告</span>
+    <span style="font-size: 11px; background: rgba(0,255,204,0.15); color: #00ffcc; padding: 2px 6px; border-radius: 4px;">v26.11.5</span>
+  </div>
+
+  <!-- 更新內容清單 -->
+  <div style="font-size: 12px; color: #bcbcbc; display: flex; flex-direction: column; gap: 10px; max-height: 300px; overflow-y: auto;">
+    <div>
+      <strong style="color: #fff;">🟢 戰術暫停系統上線</strong>
+      <p style="margin: 3px 0 0 0;">支援 10 秒投票機制、房主/客戶端雙端同步、正式暫停正計時與解除準備。</p>
+    </div>
+    <div>
+      <strong style="color: #fff;">🔧 體驗與防護優化</strong>
+      <p style="margin: 3px 0 0 0;">修復回合結束後重複計分的問題。</p>
+    </div>
+    <div>
+      <strong style="color: #fff;">📢 新增靈敏度與聲音調整</strong>
+      <p style="margin: 3px 0 0 0;">在局內esc菜單中可以調整滑鼠靈敏度與聲音設定。</p>
+    </div>
+  </div>
+</div>
+
+
     <div id="menu-status" style="margin-top: 10px; font-size: 12px; color: #ffaa00;"></div>
   </div>
 </div>
@@ -317,12 +495,91 @@
   </div>
 </div>
 
-<!-- 遊戲提示與鎖定滑鼠 -->
-<div id="instructions">
-  <h2 style="color: #ff4655; margin-bottom: 10px;">點擊螢幕鎖定視角開始戰鬥</h2>
-  <p>WASD: 移動 (Shift 靜步移動 | Ctrl 蹲走比靜步更穩)</p>
-  <p>滑鼠左鍵: 開火 | 滑鼠右鍵: 開鏡 / 三連發</p>
-  <p>1/2/3: 切換武器 | <span style="color: #ffaa00;">G: 丟槍</span> | <span style="color: #00ffcc;">F: 安裝/拆除</span> | <span id="shop-key-tip" style="color: #00ffcc;">B: 商店/換槍</span></p>
+
+<!-- ESC 設定選單遮罩 -->
+<div id="escMenuModal" class="esc-overlay" style="display: none;">
+  <div class="esc-container">
+    
+    <!-- 頂部分頁切換列 -->
+    <div class="esc-tabs">
+      <div class="esc-tab active">基礎設置</div>
+      <!-- 未來可以往右延伸：<div class="esc-tab">音效設定</div> 等 -->
+    </div>
+
+    <!-- 設定內容區塊 -->
+    <div class="esc-content">
+      
+      <!-- 音量設定 -->
+      <div class="esc-setting-row">
+        <span class="esc-label">遊戲總音量</span>
+        <div class="esc-control-group">
+          <input type="range" id="volumeRange" min="0" max="100" value="100" class="esc-slider">
+          <span id="volumeValue" class="esc-value-display" title="點擊直接修改數值">100%</span>
+        </div>
+      </div>
+
+      <!-- 靈敏度設定 -->
+      <div class="esc-setting-row">
+        <span class="esc-label">滑鼠靈敏度</span>
+        <div class="esc-control-group">
+          <input type="range" id="sensRange" min="0.1" max="5.0" step="0.05" value="1.00" class="esc-slider">
+          <span id="sensValue" class="esc-value-display" title="點擊直接修改數值">1.00</span>
+        </div>
+      </div>
+
+      <!-- 功能按鈕區 -->
+      <div class="esc-action-buttons">
+        <button id="btnPauseGame" class="esc-btn secondary-btn">暫停遊戲</button>
+        <button id="btnExitToLobby" class="esc-btn danger-btn">退出到主頁</button>
+      </div>
+
+    </div>
+
+    <!-- 底部關閉按鈕 -->
+    <div class="esc-footer">
+      <button id="btnCloseEsc" class="esc-btn primary-btn">返回遊戲</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- 退出確認彈窗 (復刻未滿人開始風格) -->
+<div id="exitConfirmModal" class="esc-overlay" style="display: none; z-index: 10001;">
+  <div class="confirm-dialog">
+    <h3>⚠️ 確定要退出嗎？</h3>
+    <p>目前的對戰進度將不會被保存，確定返回主頁嗎？</p>
+    <div class="confirm-buttons">
+      <button id="btnConfirmExitYes" class="esc-btn danger-btn">確定退出</button>
+      <button id="btnConfirmExitNo" class="esc-btn secondary-btn">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- 🛡️ 特戰風戰術暫停與投票/準備視窗 -->
+<div id="tacticalPauseModal" class="esc-overlay" style="display: none; z-index: 10005;">
+  <div class="confirm-dialog" style="width: 460px; border-color: #00ffcc; text-align: center;">
+    <h3 id="pause-modal-title" style="color: #00ffcc; margin-bottom: 5px;">⏸️ 戰術暫停進行中</h3>
+    
+    <!-- ⏱️ 升級版計時器：直接放在標題下方，用超醒目的亮綠色與大字體展示！ -->
+    <div id="pause-stopwatch" style="font-size: 24px; font-weight: bold; color: #00ffcc; margin: 10px 0; font-family: monospace; display: none; text-shadow: 0 0 10px rgba(0,255,204,0.4);">
+      00:00
+    </div>
+
+    <p id="pause-status-text" style="margin-bottom: 15px; color: #bcbcbc; font-size: 13px;">
+      戰術暫停已生效！請點擊「準備繼續」恢復對局。
+    </p>
+
+    <!-- 參與暫停投票的成員清單區 -->
+    <div id="pause-player-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 150px; overflow-y: auto; margin-bottom: 20px; text-align: left; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 4px;">
+      <!-- 動態填入 -->
+    </div>
+
+    <!-- 動態按鈕區 -->
+    <div class="confirm-buttons" id="pause-action-buttons" style="display: flex; gap: 10px;">
+      <button id="btnPauseAgree" class="esc-btn" style="background: #00ffcc; color: #0f141d; flex: 1;" onclick="handleVoteYes(event)">同意暫停</button>
+      <button id="btnPauseReject" class="esc-btn secondary-btn" style="background: #ff4655; color: #fff; flex: 1;" onclick="handleVoteNo(event)">拒絕</button>
+    </div>
+  </div>
 </div>
 
 <!-- HUD 介面 -->
@@ -371,9 +628,109 @@
 
 <script>
 
-  // 📊 追蹤玩家 KDA 的結構（確保你的 player 物件或這裡有記錄 kills, deaths, assists）
-// 如果原本的程式碼已經有記錄在 myPlayer / otherPlayers 裡面，可以直接抓取。
-// 這裡建立一個統一更新與顯示計分板的函式：
+
+
+ // --- 全域變數與 3D 設定 ---
+
+// 紀錄上一局的傷害戰報與當前局的暫存傷害
+let lastRoundCombatReport = {};
+let currentRoundCombatData = {};
+
+let scene, camera, renderer, gunGroup;
+let myPlayer = {
+  id: 'player_local', x: 0, y: 1.6, z: 22, velocityY: 0, isGrounded: true, groundY: 0, crouchOffset: 1.6, jumpY: 0,
+  yaw: 0, pitch: 0, hp: 100, team: 'attacker', isDead: false, isInteracting: false, isCrouching: false,
+  isMoving: false, isWalking: false, recoilIndex: 0, stepTimer: 0,
+  inventory: { primary: null, secondary: 'classic', melee: 'knife' , spike: false},
+  ammo: { primary: { mag: 0, reserve: 0 }, secondary: { mag: 12, reserve: 36 } },
+  activeSlot: 'secondary', lastShotTime: 0, adsLevel: 0,
+  isReloading: false
+};
+
+let droppedWeapons = [];
+let otherPlayers = {}; let keys = {}; let isLocked = false; let isMultiplayerGame = false; let isHost = false; 
+let gameMode = 'standard'; 
+let gamePhase = 'buy'; let isRoundEnding = false; let hasSwappedSide = false;
+// 支援 10 人 (5v5) 的房間狀態
+let roomState = {
+  players: [] // 陣列格式: { id, name, team: 'attacker'/'defender', ready: boolean, isHost: boolean }
+};
+
+let isEscMenuOpen = false;
+let mouseSensitivity = 1.00; // 你的全域靈敏度變數（記得對接到你的視角旋轉控制）
+let masterVolume = 1.0;     // 你的全域音量變數
+let masterGainNode = null;
+
+// --- 戰術暫停與 10 秒投票限時同步機制 ---
+let isGamePaused = false;
+let isPauseVotingActive = false; 
+let voteTimerInterval = null;
+let voteTimeRemaining = 10;
+
+let pauseState = {
+  initiator: '',
+  playersReady: {} 
+};
+
+// --- 戰術暫停正計時全域變數與控制函式 ---
+let tacticalStopwatchInterval = null;
+let tacticalElapsedSeconds = 0;
+
+// --- 武器數據庫 ---
+const WEAPONS = {
+  vandal:   { name: 'Vandal',   type: 'primary',   mag: 25, reserve: 75,  
+              dmgHead: 100, dmgBody: 26, dmgLeg: 22, hasFalloff: false, fireRate: 585, auto: true, recoilBase: 0.022, spread: 0.008, isSilenced: false },
+  
+  phantom:  { name: 'Phantom',  type: 'primary',   mag: 30, reserve: 90,  
+              dmgHead: 100, dmgBody: 25, dmgLeg: 18, 
+              farHead: 90, farBody: 24, farLeg: 18, falloffDist: 20, hasFalloff: true, fireRate: 660, auto: true, recoilBase: 0.019, spread: 0.007, isSilenced: true },
+  
+  operator: { name: 'Operator', type: 'primary',   mag: 5,  reserve: 15,  
+              dmgHead: 100, dmgBody: 100, dmgLeg: 85, hasFalloff: false, fireRate: 45,  auto: false, recoilBase: 0.150, spread: 0.001, isSilenced: false },
+  
+  spectre:  { name: 'Spectre',  type: 'primary',   mag: 30, reserve: 90,  
+              dmgHead: 52,  dmgBody: 22,  dmgLeg: 18, hasFalloff: false, fireRate: 850, auto: true, recoilBase: 0.014, spread: 0.028, isSilenced: true }, 
+  
+  ares:     { name: 'Ares/Odin',type: 'primary',   mag: 50, reserve: 150, 
+              dmgHead: 50,  dmgBody: 25,  dmgLeg: 20, hasFalloff: false, fireRate: 850, auto: true, recoilBase: 0.012, spread: 0.012, isMinigun: true, isSilenced: false }, 
+  
+  bucky:    { name: 'Bucky',    type: 'primary',   mag: 5,  reserve: 15,  
+              dmgHead: 35,  dmgBody: 18,  dmgLeg: 15, hasFalloff: true, falloffDist: 10, fireRate: 70,  auto: false, isShotgun: true, pellets: 8, spread: 0.085, isSilenced: false },
+  
+  judge:    { name: 'Judge',    type: 'primary',   mag: 7,  reserve: 21,  
+              dmgHead: 38,  dmgBody: 22,  dmgLeg: 17, hasFalloff: true, falloffDist: 12, fireRate: 380, auto: true, isShotgun: true, pellets: 6, spread: 0.095, isSilenced: false }, 
+  
+  classic:  { name: 'Classic',  type: 'secondary', mag: 12, reserve: 36,  
+              dmgHead: 52,  dmgBody: 18,  dmgLeg: 15, 
+              farHead: 44, farBody: 15, farLeg: 13, falloffDist: 20, hasFalloff: true, fireRate: 400, auto: false, recoilBase: 0.010, spread: 0.012, isSilenced: false },
+  
+  ghost:    { name: 'Ghost',    type: 'secondary', mag: 15, reserve: 45,  
+              dmgHead: 70,  dmgBody: 20,  dmgLeg: 17, 
+              farHead: 58, farBody: 17, farLeg: 14, falloffDist: 20, hasFalloff: true, fireRate: 300, auto: false, recoilBase: 0.008, spread: 0.004, isSilenced: true },
+  
+  sheriff:  { name: 'Sheriff',  type: 'secondary', mag: 6,  reserve: 24,  
+              dmgHead: 100, dmgBody: 37, dmgLeg: 31, 
+              farHead: 97, farBody: 34, farLeg: 28, falloffDist: 30, hasFalloff: true, fireRate: 220, auto: false, recoilBase: 0.035, spread: 0.008, isSilenced: false },
+  
+  knife:    { name: 'Knife',    type: 'melee',     mag: 0,  reserve: 0,   
+              dmgHead: 30,  dmgBody: 30,  dmgLeg: 30, dmgBack: 100, fireRate: 150, auto: false, range: 3.5 }
+};
+
+let roundTimer = 15; let scoreAttacker = 0; let scoreDefender = 0; let timerInterval = null;
+let muzzleLight, muzzleMesh;
+let spike = { 
+  planted: false, x: 0, y: 0, z: 0, mesh: null, detonateTimer: 45, interval: null,
+  defuseProgress: 0, isHalfWay: false, rangeRingMesh: null,
+  carrier: null,         // 記錄目前是誰帶著包 (例如 'host', 'client', 'bot_1')
+  isDroppedOnGround: true, // 記綠包是否掉在地上
+  dropMesh: null         // 地上包的 3D 模型
+};
+let sites = { A: { x: -35, z: -25, radius: 8 }, B: { x: 35, z: -25, radius: 8 } };
+let walls = []; let collisionMeshes = []; let barrierMeshes = []; let playerMeshes = [];
+
+// 訓練場傷害累計追蹤
+let rangeDummyDamage = 0;
+let rangeDummyLastHitTime = 0;
 
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Tab') {
@@ -390,6 +747,8 @@ window.addEventListener('keyup', (e) => {
     if (sb) sb.style.display = 'none';
   }
 });
+
+
 
 function updateScoreboardData() {
   const atkBody = document.getElementById('scoreboard-attackers');
@@ -442,6 +801,529 @@ function updateScoreboardData() {
     }
   });
 }
+
+
+
+// 1. 玩家在 ESC 選單中點擊「暫停遊戲」
+document.getElementById('btnPauseGame').addEventListener('click', () => {
+  toggleEscMenu(false); 
+  requestTacticalPauseVote();
+});
+
+function requestTacticalPauseVote() {
+  if (isGamePaused || isPauseVotingActive) return;
+
+  let myId = myPlayer.id;
+  
+  if (!isMultiplayerGame) {
+    startDirectOfficialPause(myId);
+    return;
+  }
+
+  if (isHost) {
+    startPauseVoting(myId);
+  } else if (conn && conn.open) {
+    conn.send({ type: 'request_pause_vote', id: myId });
+  }
+}
+
+// 單人模式直接暫停
+function startDirectOfficialPause(initiatorId) {
+  isGamePaused = true;
+  isPauseVotingActive = false;
+  
+  pauseState.initiator = initiatorId;
+  pauseState.playersReady = { [myPlayer.id]: true };
+  if (otherPlayers && otherPlayers['bot_1']) {
+    pauseState.playersReady['bot_1'] = true;
+  }
+
+  showOfficialPauseUI();
+  if (document.pointerLockElement) document.exitPointerLock();
+}
+
+// 開始投票階段（房主端與客戶端共同啟動 10 秒倒數）
+function startPauseVoting(initiatorId) {
+  isPauseVotingActive = true;
+  isGamePaused = false;
+  voteTimeRemaining = 10;
+  
+  const stopwatchEl = document.getElementById('pause-stopwatch');
+  if (stopwatchEl) stopwatchEl.style.display = 'none';
+
+  pauseState.initiator = initiatorId;
+  pauseState.playersReady = {};
+  
+  pauseState.playersReady[initiatorId] = true;
+
+  if (myPlayer.id !== initiatorId) pauseState.playersReady[myPlayer.id] = false;
+  if (otherPlayers) {
+    Object.keys(otherPlayers).forEach(id => {
+      if (id !== initiatorId) pauseState.playersReady[id] = false;
+    });
+  }
+
+  setupVotingUIState();
+  if (document.pointerLockElement) document.exitPointerLock();
+  
+  // 💡 啟動雙端皆同步的 10 秒倒數計時器
+  startLocalVoteTimer();
+
+  // 房主廣播投票狀態給所有客戶端
+  if (isMultiplayerGame && isHost && conn && conn.open) {
+    conn.send({ type: 'sync_pause_vote_state', state: pauseState, isVoting: isPauseVotingActive, timeLeft: voteTimeRemaining });
+  }
+
+  checkAllPauseVotes();
+}
+
+// 設定投票中的介面外觀（確保拒絕按鈕顯示出來）
+function setupVotingUIState() {
+  const pauseModal = document.getElementById('tacticalPauseModal');
+  if (pauseModal) {
+    pauseModal.style.display = 'flex';
+    document.getElementById('pause-modal-title').innerText = "⏸️ 戰術暫停投票";
+    document.getElementById('pause-action-buttons').style.display = 'flex';
+    
+    const agreeBtn = document.getElementById('btnPauseAgree');
+    agreeBtn.innerText = "同意暫停";
+    agreeBtn.style.background = '#00ffcc';
+    agreeBtn.style.color = '#0f141d';
+
+    // 💡 強制確保客戶端也能看到「拒絕」按鈕！
+    const rejectBtn = document.getElementById('btnPauseReject');
+    if (rejectBtn) {
+      rejectBtn.style.display = 'block';
+      rejectBtn.innerText = "拒絕";
+    }
+  }
+  updatePauseUI();
+}
+
+// 啟動本地的 10 秒倒數
+function startLocalVoteTimer() {
+  if (voteTimerInterval) clearInterval(voteTimerInterval);
+  voteTimerInterval = setInterval(() => {
+    voteTimeRemaining--;
+    if (voteTimeRemaining <= 0) {
+      clearInterval(voteTimerInterval);
+      if (isPauseVotingActive) {
+        if (!isMultiplayerGame || isHost) {
+          cancelPauseVoteDueToTimeout();
+        }
+      }
+    } else {
+      updatePauseUI();
+    }
+  }, 1000);
+}
+
+// 點擊「同意暫停」
+function handleVoteYes(e) {
+  if (e) { e.stopPropagation(); e.preventDefault(); }
+  if (isGamePaused) {
+    toggleReadyToUnpause(e);
+    return;
+  }
+
+  if (!isPauseVotingActive) return;
+
+  let myId = myPlayer.id;
+  pauseState.playersReady[myId] = true;
+  updatePauseUI();
+
+  if (isMultiplayerGame) {
+    if (isHost) {
+      checkAllPauseVotes();
+      broadcastPauseVoteState();
+    } else if (conn && conn.open) {
+      conn.send({ type: 'pause_vote_toggle', id: myId, ready: true });
+    }
+  } else {
+    checkAllPauseVotes();
+  }
+}
+
+// 💡 點擊「拒絕」按鈕的完整修復邏輯
+function handleVoteNo(e) {
+  if (e) { e.stopPropagation(); e.preventDefault(); }
+  if (!isPauseVotingActive) return;
+  
+  if (isMultiplayerGame) {
+    if (isHost) {
+      cancelPauseVoteDueToTimeout();
+    } else if (conn && conn.open) {
+      // 客戶端點擊拒絕，通知主機取消投票
+      conn.send({ type: 'pause_vote_reject' });
+    }
+  } else {
+    cancelPauseVoteDueToTimeout();
+  }
+}
+
+// 投票失敗 / 逾時 / 被拒絕 ➔ 取消暫停，視窗關閉，遊戲繼續
+function cancelPauseVoteDueToTimeout() {
+  if (voteTimerInterval) clearInterval(voteTimerInterval);
+  isPauseVotingActive = false;
+  isGamePaused = false;
+
+  // 關閉暫停時停止計時
+  stopTacticalStopwatch();
+  const stopwatchEl = document.getElementById('pause-stopwatch');
+  if (stopwatchEl) stopwatchEl.style.display = 'none';
+
+  const pauseModal = document.getElementById('tacticalPauseModal');
+  if (pauseModal) pauseModal.style.display = 'none';
+
+  if (isMultiplayerGame && isHost && conn && conn.open) {
+    conn.send({ type: 'cancel_pause_vote' });
+  }
+
+  document.body.requestPointerLock();
+}
+
+function checkAllPauseVotes() {
+  updatePauseUI();
+  
+  let statuses = Object.values(pauseState.playersReady);
+  if (statuses.length > 0 && statuses.every(status => status === true)) {
+    if (voteTimerInterval) clearInterval(voteTimerInterval);
+    executeOfficialPause();
+  }
+}
+
+function executeOfficialPause() {
+  if (voteTimerInterval) clearInterval(voteTimerInterval);
+  isPauseVotingActive = false;
+  isGamePaused = true;
+
+  // 1. 先把當前狀態（全體皆為 true 的狀態）發送給客戶端，讓大家知道「投票通過了！」
+  if (isMultiplayerGame && isHost && conn && conn.open) {
+    conn.send({ type: 'official_pause_activated', state: pauseState });
+  }
+
+  // 2. 顯示正式暫停介面
+  showOfficialPauseUI();
+
+  // 3. 最後才把大家的準備狀態重置為 false（準備進入第二階段的「準備繼續」點擊）
+  Object.keys(pauseState.playersReady).forEach(id => {
+    pauseState.playersReady[id] = false;
+  });
+  updatePauseUI(); // 重新整理本地 UI 顯示為考慮中
+}
+
+function showOfficialPauseUI() {
+  const pauseModal = document.getElementById('tacticalPauseModal');
+  if (pauseModal) {
+    pauseModal.style.display = 'flex';
+    document.getElementById('pause-modal-title').innerText = "⏸️ 戰術暫停進行中";
+    document.getElementById('pause-status-text').innerText = "戰術暫停已生效！請點擊「準備繼續」恢復對局。";
+    
+    const rejectBtn = document.getElementById('btnPauseReject');
+    if (rejectBtn) rejectBtn.style.display = 'none';
+
+    const agreeBtn = document.getElementById('btnPauseAgree');
+    agreeBtn.innerText = "準備繼續";
+    agreeBtn.style.background = '#00ffcc';
+    agreeBtn.style.color = '#0f141d';
+
+    // 顯示暫停計時器
+  const stopwatchEl = document.getElementById('pause-stopwatch');
+  if (stopwatchEl) stopwatchEl.style.display = 'block';
+  startTacticalStopwatch();
+  }
+  updatePauseUI();
+}
+
+// 第二階段：點擊「準備繼續」
+function toggleReadyToUnpause(e) {
+  if (e) { e.stopPropagation(); e.preventDefault(); }
+  let myId = myPlayer.id;
+  let currentStatus = pauseState.playersReady[myId] || false;
+  let newStatus = !currentStatus;
+  
+  // 1. 本地立刻切換狀態並刷新 UI
+  pauseState.playersReady[myId] = newStatus;
+  updatePauseUI();
+
+  // 2. 發送給對方或主機
+  if (isMultiplayerGame) {
+    if (isHost) {
+      checkAllUnpauseReady();
+      broadcastPauseVoteState(); // 確保房主更新後立刻廣播給所有人
+    } else if (conn && conn.open) {
+      conn.send({ type: 'unpause_ready_toggle', id: myId, ready: newStatus });
+    }
+  } else {
+    checkAllUnpauseReady();
+    updatePauseUI();
+  }
+}
+
+// 檢查是否所有人在第二階段都準備好了
+function checkAllUnpauseReady() {
+  updatePauseUI();
+  
+  let statuses = Object.values(pauseState.playersReady);
+  // 必須確保 statuses 裡面有東西，且全部都是 true
+  if (statuses.length > 0 && statuses.every(status => status === true)) {
+    executeUnpause();
+  }
+}
+
+function executeUnpause() {
+  if (voteTimerInterval) clearInterval(voteTimerInterval);
+  isGamePaused = false;
+  isPauseVotingActive = false;
+  
+  const pauseModal = document.getElementById('tacticalPauseModal');
+  if (pauseModal) pauseModal.style.display = 'none';
+  
+  document.body.requestPointerLock();
+
+  // 關閉暫停時停止計時
+  stopTacticalStopwatch();
+  const stopwatchEl = document.getElementById('pause-stopwatch');
+  if (stopwatchEl) stopwatchEl.style.display = 'none';
+
+  if (isMultiplayerGame && isHost && conn && conn.open) {
+    conn.send({ type: 'force_unpause' });
+  }
+}
+
+function broadcastPauseVoteState() {
+  if (isHost && conn && conn.open) {
+    conn.send({ type: 'sync_pause_vote_state', state: pauseState, isVoting: isPauseVotingActive, timeLeft: voteTimeRemaining });
+  }
+  updatePauseUI();
+}
+
+// 即時更新介面與倒數秒數
+function updatePauseUI() {
+  const listDiv = document.getElementById('pause-player-list');
+  const agreeBtn = document.getElementById('btnPauseAgree');
+  if (!listDiv) return;
+
+  listDiv.innerHTML = '';
+  let myId = myPlayer.id;
+  let amIReady = pauseState.playersReady[myId] || false;
+
+  if (isPauseVotingActive) {
+    document.getElementById('pause-status-text').innerText = `發起戰術暫停投票。請等待所有成員回應 (剩餘 ${voteTimeRemaining} 秒)...`;
+    agreeBtn.innerText = amIReady ? '已同意 (已投票)' : '同意暫停';
+  } else if (isGamePaused) {
+    agreeBtn.innerText = amIReady ? '已準備繼續 (取消)' : '準備繼續';
+    agreeBtn.style.background = amIReady ? '#2f353b' : '#00ffcc';
+    agreeBtn.style.color = amIReady ? '#00ffcc' : '#0f141d';
+  }
+
+  let allPlayersStatus = [];
+  allPlayersStatus.push({ name: myPlayer.name + ' (我)', ready: amIReady });
+  
+  if (typeof otherPlayers !== 'undefined') {
+    Object.entries(otherPlayers).forEach(([id, p]) => {
+      allPlayersStatus.push({ name: p.name || 'Agent', ready: pauseState.playersReady[id] || false });
+    });
+  }
+
+  allPlayersStatus.forEach(p => {
+    let statusText = isPauseVotingActive ? (p.ready ? '✓ 已同意' : '⏳ 投票中') : (p.ready ? '✓ 已準備' : '⏳ 考慮中');
+    listDiv.innerHTML += `
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; padding: 4px 8px; background: rgba(255,255,255,0.03); border-radius: 3px;">
+        <span style="color: #fff;">${p.name}</span>
+        <span style="color: ${p.ready ? '#00ffcc' : '#ffaa00'}; font-weight: bold;">${statusText}</span>
+      </div>
+    `;
+  });
+}
+
+
+// --- 戰術暫停正計時全域變數與控制函式 ---
+function startTacticalStopwatch() {
+  tacticalElapsedSeconds = 0;
+  updateStopwatchUI();
+
+  if (tacticalStopwatchInterval) clearInterval(tacticalStopwatchInterval);
+  tacticalStopwatchInterval = setInterval(() => {
+    if (isGamePaused) {
+      tacticalElapsedSeconds++;
+      updateStopwatchUI();
+    }
+  }, 1000);
+}
+
+function stopTacticalStopwatch() {
+  if (tacticalStopwatchInterval) {
+    clearInterval(tacticalStopwatchInterval);
+    tacticalStopwatchInterval = null;
+  }
+}
+
+function updateStopwatchUI() {
+  const stopwatchEl = document.getElementById('pause-stopwatch');
+  if (!stopwatchEl) return;
+
+  const mins = Math.floor(tacticalElapsedSeconds / 60).toString().padStart(2, '0');
+  const secs = (tacticalElapsedSeconds % 60).toString().padStart(2, '0');
+  stopwatchEl.innerText = `暫停計時: ${mins}:${secs}`;
+}
+
+
+// --- 專門用來控制 ESC 設定選單與游標解鎖的全域監聽 ---
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    // 💡 1. 嚴格檢查：如果目前身處主選單或大廳（也就是 #hud 沒有顯示，或者畫面上有開啟中的大廳/主選單），直接攔截不動作！
+    const hud = document.getElementById('hud');
+    const isGameActive = hud && hud.style.display === 'block';
+    
+    if (!isGameActive) {
+      return; // 局外按 ESC 完全沒反應，安全！
+    }
+
+    // 2. 如果「確定要退出」的確認彈窗開著，先關閉確認彈窗
+    const exitModal = document.getElementById('exitConfirmModal');
+    if (exitModal && exitModal.style.display === 'flex') {
+      exitModal.style.display = 'none';
+      return;
+    }
+
+    // 3. 如果商店開著，優先關閉商店
+    const shopMenu = document.getElementById('shop-menu');
+    if (shopMenu && shopMenu.style.display === 'flex') {
+      closeShop();
+      return;
+    }
+
+    // 4. 只有在真正局內時，才切換 ESC 設定選單！
+    toggleEscMenu(!isEscMenuOpen);
+  }
+});
+
+function toggleEscMenu(open) {
+  isEscMenuOpen = open;
+  const menu = document.getElementById('escMenuModal');
+  
+  if (open) {
+    menu.style.display = 'flex';
+    // 解鎖滑鼠游標，讓玩家可以點擊畫面上的拉條與按鈕
+    if (document.pointerLockElement) {
+      document.exitPointerLock();
+    }
+  } else {
+    menu.style.display = 'none';
+    // 關閉選單時，如果是在遊戲中，可以自動重新鎖定回遊戲畫面
+    // 視你的遊戲邏輯而定，通常點擊畫面或點「返回遊戲」時才會呼叫 requestPointerLock()
+  }
+}
+
+// 綁定返回遊戲按鈕
+document.getElementById('btnCloseEsc').addEventListener('click', () => {
+  toggleEscMenu(false);
+});
+
+// --- 音量滑桿與數字點擊互動 (安全防護版) ---
+document.addEventListener('DOMContentLoaded', () => {
+  const volRange = document.getElementById('volumeRange');
+  const volDisplay = document.getElementById('volumeValue');
+
+  // 頁面載入時先讀取紀錄
+  const savedVol = localStorage.getItem('fiylorant_volume');
+  if (savedVol !== null) {
+    masterVolume = parseFloat(savedVol);
+    if (volRange) volRange.value = masterVolume * 100;
+    if (volDisplay) volDisplay.innerText = Math.round(masterVolume * 100) + '%';
+    
+    // 即時套用至音訊閘口
+    if (masterGainNode) {
+      masterGainNode.gain.value = masterVolume;
+    }
+  }
+
+  // 💡 加上 if (volRange) 保護，避免抓不到元素時直接崩潰
+  if (volRange) {
+    volRange.addEventListener('input', (e) => {
+      let val = e.target.value;
+      if (volDisplay) volDisplay.innerText = val + '%';
+      masterVolume = val / 100;
+      
+      if (masterGainNode) {
+        masterGainNode.gain.value = masterVolume;
+      }
+      localStorage.setItem('fiylorant_volume', masterVolume);
+    });
+  }
+
+  if (volDisplay) {
+    volDisplay.addEventListener('click', () => {
+      let input = prompt("請輸入音量 (0 - 100):", volRange ? parseInt(volRange.value) : 100);
+      if (input !== null) {
+        let val = Math.max(0, Math.min(100, parseInt(input) || 0));
+        if (volRange) volRange.value = val;
+        if (volDisplay) volDisplay.innerText = val + '%';
+        masterVolume = val / 100;
+        
+        if (masterGainNode) {
+          masterGainNode.gain.value = masterVolume;
+        }
+        localStorage.setItem('fiylorant_volume', masterVolume);
+      }
+    });
+  }
+});
+
+
+// --- 靈敏度滑桿與數字點擊互動 (已整合靈敏度與記憶功能) ---
+const sensRange = document.getElementById('sensRange');
+const sensDisplay = document.getElementById('sensValue');
+
+// 頁面載入時先讀取紀錄
+const savedSens = localStorage.getItem('fiylorant_sensitivity');
+if (savedSens !== null) {
+  mouseSensitivity = parseFloat(savedSens);
+  if (sensRange) sensRange.value = mouseSensitivity;
+  if (sensDisplay) sensDisplay.innerText = mouseSensitivity.toFixed(2);
+}
+
+sensRange.addEventListener('input', (e) => {
+  let val = parseFloat(e.target.value).toFixed(2);
+  sensDisplay.innerText = val;
+  mouseSensitivity = parseFloat(val);
+  
+  localStorage.setItem('fiylorant_sensitivity', mouseSensitivity);
+});
+
+sensDisplay.addEventListener('click', () => {
+  let input = prompt("請輸入滑鼠靈敏度 (0.1 - 5.0):", sensRange.value);
+  if (input !== null) {
+    let val = Math.max(0.1, Math.min(5.0, parseFloat(input) || 1.0)).toFixed(2);
+    sensRange.value = val;
+    sensDisplay.innerText = val;
+    mouseSensitivity = parseFloat(val);
+    
+    localStorage.setItem('fiylorant_sensitivity', mouseSensitivity);
+  }
+});
+
+// --- 退出到主頁確認彈窗邏輯 ---
+document.getElementById('btnExitToLobby').addEventListener('click', () => {
+  document.getElementById('exitConfirmModal').style.display = 'flex';
+});
+
+document.getElementById('btnConfirmExitNo').addEventListener('click', () => {
+  document.getElementById('exitConfirmModal').style.display = 'none';
+});
+
+document.getElementById('btnConfirmExitYes').addEventListener('click', () => {
+  // 執行返回主頁或斷線邏輯
+  location.reload(); // 暫時用最簡單的重新整理或切換回大廳函式
+});
+
+// 暫停按鈕點擊觸發
+document.getElementById('btnPauseGame').addEventListener('click', () => {
+  toggleEscMenu(false);
+  // TODO: 這裡之後可以串接我們剛剛討論的「發起暫停投票」機制！
+  console.log("玩家點擊了暫停遊戲");
+});
 
 // 💡 1. 退出遊戲功能
 function exitGame() {
@@ -500,48 +1382,23 @@ function leaveLobbyToMain() {
   if (statusTip) statusTip.innerText = '';
 }
 
-// --- 武器數據庫 ---
-const WEAPONS = {
-  vandal:   { name: 'Vandal',   type: 'primary',   mag: 25, reserve: 75,  
-              dmgHead: 100, dmgBody: 26, dmgLeg: 22, hasFalloff: false, fireRate: 585, auto: true, recoilBase: 0.022, spread: 0.008, isSilenced: false },
-  
-  phantom:  { name: 'Phantom',  type: 'primary',   mag: 30, reserve: 90,  
-              dmgHead: 100, dmgBody: 25, dmgLeg: 18, 
-              farHead: 90, farBody: 24, farLeg: 18, falloffDist: 20, hasFalloff: true, fireRate: 660, auto: true, recoilBase: 0.019, spread: 0.007, isSilenced: true },
-  
-  operator: { name: 'Operator', type: 'primary',   mag: 5,  reserve: 15,  
-              dmgHead: 100, dmgBody: 100, dmgLeg: 85, hasFalloff: false, fireRate: 45,  auto: false, recoilBase: 0.150, spread: 0.001, isSilenced: false },
-  
-  spectre:  { name: 'Spectre',  type: 'primary',   mag: 30, reserve: 90,  
-              dmgHead: 52,  dmgBody: 22,  dmgLeg: 18, hasFalloff: false, fireRate: 850, auto: true, recoilBase: 0.014, spread: 0.028, isSilenced: true }, 
-  
-  ares:     { name: 'Ares/Odin',type: 'primary',   mag: 50, reserve: 150, 
-              dmgHead: 50,  dmgBody: 25,  dmgLeg: 20, hasFalloff: false, fireRate: 850, auto: true, recoilBase: 0.012, spread: 0.012, isMinigun: true, isSilenced: false }, 
-  
-  bucky:    { name: 'Bucky',    type: 'primary',   mag: 5,  reserve: 15,  
-              dmgHead: 35,  dmgBody: 18,  dmgLeg: 15, hasFalloff: true, falloffDist: 10, fireRate: 70,  auto: false, isShotgun: true, pellets: 8, spread: 0.085, isSilenced: false },
-  
-  judge:    { name: 'Judge',    type: 'primary',   mag: 7,  reserve: 21,  
-              dmgHead: 38,  dmgBody: 22,  dmgLeg: 17, hasFalloff: true, falloffDist: 12, fireRate: 380, auto: true, isShotgun: true, pellets: 6, spread: 0.095, isSilenced: false }, 
-  
-  classic:  { name: 'Classic',  type: 'secondary', mag: 12, reserve: 36,  
-              dmgHead: 52,  dmgBody: 18,  dmgLeg: 15, 
-              farHead: 44, farBody: 15, farLeg: 13, falloffDist: 20, hasFalloff: true, fireRate: 400, auto: false, recoilBase: 0.010, spread: 0.012, isSilenced: false },
-  
-  ghost:    { name: 'Ghost',    type: 'secondary', mag: 15, reserve: 45,  
-              dmgHead: 70,  dmgBody: 20,  dmgLeg: 17, 
-              farHead: 58, farBody: 17, farLeg: 14, falloffDist: 20, hasFalloff: true, fireRate: 300, auto: false, recoilBase: 0.008, spread: 0.004, isSilenced: true },
-  
-  sheriff:  { name: 'Sheriff',  type: 'secondary', mag: 6,  reserve: 24,  
-              dmgHead: 100, dmgBody: 37, dmgLeg: 31, 
-              farHead: 97, farBody: 34, farLeg: 28, falloffDist: 30, hasFalloff: true, fireRate: 220, auto: false, recoilBase: 0.035, spread: 0.008, isSilenced: false },
-  
-  knife:    { name: 'Knife',    type: 'melee',     mag: 0,  reserve: 0,   
-              dmgHead: 30,  dmgBody: 30,  dmgLeg: 30, dmgBack: 100, fireRate: 150, auto: false, range: 3.5 }
-};
+
+
+
+function initMasterVolume() {
+  if (typeof audioCtx !== 'undefined' && !masterGainNode) {
+    masterGainNode = audioCtx.createGain();
+    masterGainNode.gain.value = typeof masterVolume !== 'undefined' ? masterVolume : 1.0;
+    masterGainNode.connect(audioCtx.destination);
+  }
+}
+
+
 
 // --- 音訊合成器 ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+// 💡 就是這裡！在建立後呼叫這行：
+initMasterVolume();
 function playSound(type, volume = 0.35, sourcePos = null, isSilenced = false) {
   if (audioCtx.state === 'suspended') audioCtx.resume();
   
@@ -561,7 +1418,17 @@ function playSound(type, volume = 0.35, sourcePos = null, isSilenced = false) {
   }
 
   const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
-  osc.connect(gain); gain.connect(audioCtx.destination); const now = audioCtx.currentTime;
+  osc.connect(gain); 
+  
+  // 💡 優先連接到總音量閘口，如果還沒初始化才退回直連喇叭
+  if (typeof masterGainNode !== 'undefined' && masterGainNode) {
+    gain.connect(masterGainNode);
+  } else {
+    gain.connect(audioCtx.destination);
+  }
+  
+  
+  const now = audioCtx.currentTime;
 
   if (type === 'shoot') {
     if (isSilenced) {
@@ -610,31 +1477,7 @@ function playSound(type, volume = 0.35, sourcePos = null, isSilenced = false) {
   }
 }
 
-// --- 全域變數與 3D 設定 ---
 
-// 紀錄上一局的傷害戰報與當前局的暫存傷害
-let lastRoundCombatReport = {};
-let currentRoundCombatData = {};
-
-let scene, camera, renderer, gunGroup;
-let myPlayer = {
-  id: 'player_local', x: 0, y: 1.6, z: 22, velocityY: 0, isGrounded: true, groundY: 0, crouchOffset: 1.6, jumpY: 0,
-  yaw: 0, pitch: 0, hp: 100, team: 'attacker', isDead: false, isInteracting: false, isCrouching: false,
-  isMoving: false, isWalking: false, recoilIndex: 0, stepTimer: 0,
-  inventory: { primary: null, secondary: 'classic', melee: 'knife' , spike: false},
-  ammo: { primary: { mag: 0, reserve: 0 }, secondary: { mag: 12, reserve: 36 } },
-  activeSlot: 'secondary', lastShotTime: 0, adsLevel: 0,
-  isReloading: false
-};
-
-let droppedWeapons = [];
-let otherPlayers = {}; let keys = {}; let isLocked = false; let isMultiplayerGame = false; let isHost = false; 
-let gameMode = 'standard'; 
-let gamePhase = 'buy'; let isRoundEnding = false; let hasSwappedSide = false;
-// 支援 10 人 (5v5) 的房間狀態
-let roomState = {
-  players: [] // 陣列格式: { id, name, team: 'attacker'/'defender', ready: boolean, isHost: boolean }
-};
 
 // 房主建立房間時初始化
 function createRoom() {
@@ -843,21 +1686,7 @@ function executeStartGame() {
   startGameFromLobby();
 }
 
-let roundTimer = 15; let scoreAttacker = 0; let scoreDefender = 0; let timerInterval = null;
-let muzzleLight, muzzleMesh;
-let spike = { 
-  planted: false, x: 0, y: 0, z: 0, mesh: null, detonateTimer: 45, interval: null,
-  defuseProgress: 0, isHalfWay: false, rangeRingMesh: null,
-  carrier: null,         // 記錄目前是誰帶著包 (例如 'host', 'client', 'bot_1')
-  isDroppedOnGround: true, // 記綠包是否掉在地上
-  dropMesh: null         // 地上包的 3D 模型
-};
-let sites = { A: { x: -35, z: -25, radius: 8 }, B: { x: 35, z: -25, radius: 8 } };
-let walls = []; let collisionMeshes = []; let barrierMeshes = []; let playerMeshes = [];
 
-// 訓練場傷害累計追蹤
-let rangeDummyDamage = 0;
-let rangeDummyLastHitTime = 0;
 
 // --- 碰撞檢測 ---
 function isColliding(pX, pZ, w) {
@@ -1295,6 +2124,82 @@ else if (data.type === 'get_kicked') {
       broadcastLobbyState(); 
     }
 
+    // 🛡️ 戰術暫停、10秒投票限時與雙階段準備網路同步封包
+    else if (data.type === 'request_pause_vote' && isHost) {
+      startPauseVoting(data.id);
+    }
+    else if (data.type === 'pause_vote_toggle') {
+      pauseState.playersReady[data.id] = data.ready;
+      if (isHost) {
+        checkAllPauseVotes();
+        broadcastPauseVoteState();
+      } else {
+        updatePauseUI();
+      }
+    }
+    else if (data.type === 'pause_vote_reject' && isHost) {
+      // 💡 客戶端點擊拒絕，房主收到後取消投票並通知全體
+      cancelPauseVoteDueToTimeout();
+    }
+    else if (data.type === 'cancel_pause_vote') {
+      if (voteTimerInterval) clearInterval(voteTimerInterval);
+      isPauseVotingActive = false;
+      isGamePaused = false;
+      const pauseModal = document.getElementById('tacticalPauseModal');
+      if (pauseModal) pauseModal.style.display = 'none';
+      document.body.requestPointerLock();
+    }
+    else if (data.type === 'sync_pause_vote_state') {
+      // 💡 客戶端同步房主的投票狀態與 10 秒剩餘時間，並自動啟動本地倒數
+      isPauseVotingActive = data.isVoting;
+      pauseState = data.state;
+      voteTimeRemaining = data.timeLeft || 10;
+
+      // 🛡️ 確保同步投票狀態時，如果還在投票中，強制把計時器藏起來！
+      const stopwatchEl = document.getElementById('pause-stopwatch');
+      if (stopwatchEl) stopwatchEl.style.display = 'none';
+      
+      // 如果當前不是投票中（代表已經進入正式暫停），強制呼叫 showOfficialPauseUI() 統一雙端介面！
+      if (!isPauseVotingActive && isGamePaused) {
+        showOfficialPauseUI();
+      } else if (isPauseVotingActive) {
+        setupVotingUIState();
+        startLocalVoteTimer();
+      }// 讓客戶端也能同步跑 10 秒倒數！
+
+      if (document.pointerLockElement) document.exitPointerLock();
+      updatePauseUI();
+    }
+    else if (data.type === 'official_pause_activated') {
+      if (voteTimerInterval) clearInterval(voteTimerInterval);
+      isPauseVotingActive = false;
+      isGamePaused = true;
+      pauseState = data.state;
+      if (data.state) {
+        pauseState = data.state;
+      }
+
+      showOfficialPauseUI();
+    }
+    else if (data.type === 'unpause_ready_toggle') {
+      pauseState.playersReady[data.id] = data.ready;
+      if (isHost) {
+        checkAllUnpauseReady();
+        broadcastPauseVoteState();
+      } else {
+        updatePauseUI();
+      }
+    }
+    else if (data.type === 'force_unpause') {
+      if (voteTimerInterval) clearInterval(voteTimerInterval);
+      isGamePaused = false;
+      isPauseVotingActive = false;
+      const pauseModal = document.getElementById('tacticalPauseModal');
+      if (pauseModal) pauseModal.style.display = 'none';
+      document.body.requestPointerLock();
+    }
+
+
     else if (data.type === 'start_game') { 
       startGameFromLobby(); 
     
@@ -1443,7 +2348,6 @@ function kickToMainMenu(message = "你已被房主移出房間") {
   // 切換畫面顯示
   document.getElementById('lobby-menu').style.display = 'none';
   document.getElementById('hud').style.display = 'none';
-  document.getElementById('instructions').style.display = 'none';
   document.getElementById('main-menu').style.display = 'flex';
   
   // 恢復預設狀態
@@ -1616,7 +2520,7 @@ function onTeamChange() { const team = document.getElementById('my-team-select')
 function startGameFromLobby() {
   document.getElementById('lobby-menu').style.display = 'none'; 
   document.getElementById('hud').style.display = 'block'; 
-  document.getElementById('instructions').style.display = 'block';
+  
   
   myPlayer.id = isHost ? 'host' : (peer && peer.id ? peer.id : 'client_' + Math.random().toString(36).substr(2, 4));
   
@@ -1704,7 +2608,7 @@ function startSingleplayer() {
   isMultiplayerGame = false; gameMode = 'standard'; myPlayer.id = 'player_local'; myPlayer.team = document.getElementById('single-team-select').value; 
   myPlayer.z = myPlayer.team === 'attacker' ? 45 : -45; myPlayer.x = 0; myPlayer.y = 1.6;
   
-  document.getElementById('main-menu').style.display = 'none'; document.getElementById('hud').style.display = 'block'; document.getElementById('instructions').style.display = 'block';
+  document.getElementById('main-menu').style.display = 'none'; document.getElementById('hud').style.display = 'block'; 
   document.getElementById('room-tag').innerText = `單人模式 [${myPlayer.team === 'attacker' ? '進攻方' : '防守方'}]`;
   
   initEngine();
@@ -1731,7 +2635,7 @@ function startRangeMode() {
   isMultiplayerGame = false; gameMode = 'range'; myPlayer.id = 'player_local'; myPlayer.team = 'attacker';
   myPlayer.x = 0; myPlayer.y = 1.6; myPlayer.z = 22; 
   
-  document.getElementById('main-menu').style.display = 'none'; document.getElementById('hud').style.display = 'block'; document.getElementById('instructions').style.display = 'block';
+  document.getElementById('main-menu').style.display = 'none'; document.getElementById('hud').style.display = 'block'; 
   document.getElementById('room-tag').innerText = `🎯 50m 訓練場 (按 B 隨時換槍)`;
   document.getElementById('shop-key-tip').innerText = 'B: 換槍選單';
   document.getElementById('timer').style.display = 'none';
@@ -1761,11 +2665,28 @@ function initEngine() {
   updateGunModel('classic'); updateHUDWeapon();
 
   window.addEventListener('resize', onWindowResize);
-  document.addEventListener('keydown', handleKeyDown); document.addEventListener('keyup', handleKeyUp);
+  document.addEventListener('keydown', handleKeyDown); 
+  document.addEventListener('keyup', handleKeyUp);
   document.addEventListener('mousemove', handleMouseMove); 
   
+  // 🎯 1. 點擊畫面自動請求鎖定滑鼠指標
   document.addEventListener('mousedown', e => { 
-    if (!isLocked) return;
+    // 🛡️ 如果正在暫停或投票中，點擊畫面時直接略過，不準觸發滑鼠鎖定與開火！
+  if (isGamePaused || isPauseVotingActive) return;
+    if (!isLocked) {
+      const escMenu = document.getElementById('escMenuModal');
+      const shopMenu = document.getElementById('shop-menu');
+      const exitModal = document.getElementById('exitConfirmModal');
+      
+      if ((!escMenu || escMenu.style.display !== 'flex') && 
+          (!shopMenu || shopMenu.style.display !== 'flex') && 
+          (!exitModal || exitModal.style.display !== 'flex')) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        document.body.requestPointerLock();
+      }
+      return;
+    }
+
     if (e.button === 0) {
       mouseIsDown = true; 
       const activeW = WEAPONS[myPlayer.activeSlot === 'melee' ? 'knife' : myPlayer.inventory[myPlayer.activeSlot]];
@@ -1773,15 +2694,15 @@ function initEngine() {
     }
     if (e.button === 2) handleRightClick(performance.now());
   });
+
   document.addEventListener('mouseup', e => { if (e.button === 0) mouseIsDown = false; });
-  document.addEventListener('contextmenu', e => e.preventDefault()); 
-  
-  const instructions = document.getElementById('instructions');
-  instructions.addEventListener('click', () => { 
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    if(document.getElementById('shop-menu').style.display !== 'flex') document.body.requestPointerLock(); 
+  document.addEventListener('contextmenu', e => e.preventDefault());
+
+  // 🎯 2. 關鍵補強：同步瀏覽器的滑鼠鎖定狀態到 isLocked 變數
+  document.addEventListener('pointerlockchange', () => { 
+    isLocked = (document.pointerLockElement === document.body);
+    console.log("🎯 滑鼠鎖定狀態更新：", isLocked);
   });
-  document.addEventListener('pointerlockchange', () => { isLocked = document.pointerLockElement === document.body; instructions.style.display = isLocked ? 'none' : 'block'; });
 }
 
 // --- 初始化 50m 訓練場場景 ---
@@ -1848,12 +2769,7 @@ function initRangeEngine() {
   document.addEventListener('mouseup', e => { if (e.button === 0) mouseIsDown = false; });
   document.addEventListener('contextmenu', e => e.preventDefault()); 
   
-  const instructions = document.getElementById('instructions');
-  instructions.addEventListener('click', () => { 
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    if(document.getElementById('shop-menu').style.display !== 'flex') document.body.requestPointerLock(); 
-  });
-  document.addEventListener('pointerlockchange', () => { isLocked = document.pointerLockElement === document.body; instructions.style.display = isLocked ? 'none' : 'block'; });
+  
 }
 
 function updateGunModel(weaponId) {
@@ -2247,7 +3163,7 @@ function handleKeyDown(e) {
   }
   keys[e.code] = true; 
   if (e.code === 'KeyB') toggleShop();
-  if (document.pointerLockElement !== document.body) return; 
+  if (!isLocked) return;
   if (e.code === 'KeyR' && !myPlayer.isReloading && !myPlayer.isInteracting && !myPlayer.isDead && myPlayer.activeSlot !== 'melee') reloadWeapon();
   if (e.code === 'Digit1') switchWeapon(1); 
   if (e.code === 'Digit2') switchWeapon(2); 
@@ -2319,8 +3235,14 @@ function reloadWeapon() {
 
 function handleMouseMove(e) {
   if (!isLocked) return;
+  
+  // 計算 ADS（開鏡）靈敏度倍率
   let sensMulti = myPlayer.adsLevel === 2 ? 0.3 : (myPlayer.adsLevel === 1 ? 0.6 : 1.0);
-  myPlayer.yaw -= e.movementX * 0.0022 * sensMulti; myPlayer.pitch -= e.movementY * 0.0022 * sensMulti;
+  
+  // 💡 在這裡乘上我們的全域滑鼠靈敏度變數 (mouseSensitivity)！
+  myPlayer.yaw -= e.movementX * 0.0022 * sensMulti * mouseSensitivity; 
+  myPlayer.pitch -= e.movementY * 0.0022 * sensMulti * mouseSensitivity;
+  
   myPlayer.pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, myPlayer.pitch));
 }
 
@@ -2417,6 +3339,11 @@ function updateMovement(dt) {
 
 // --- 射擊與命中 ---
 function tryShoot(now) {
+
+  // 🛡️ 絕對防線：只要遊戲處於暫停中、正在投票中、或者滑鼠沒有被正確鎖定在遊戲內，絕對不准開槍！
+  if (isGamePaused || isPauseVotingActive) return;
+  if (document.pointerLockElement !== document.body) return;
+
   if (myPlayer.isDead || myPlayer.isReloading || myPlayer.isInteracting || document.pointerLockElement !== document.body || (gameMode !== 'range' && gamePhase === 'buy')) return;
   const wId = myPlayer.activeSlot === 'melee' ? 'knife' : myPlayer.inventory[myPlayer.activeSlot];
   if (!wId) return;
@@ -3026,6 +3953,9 @@ function startTimer() {
   finalizeCombatReport();
 
   timerInterval = setInterval(() => {
+
+    if (isGamePaused) return;
+
     if (isMultiplayerGame && !isHost) return;
     if (isRoundEnding) return;
     
@@ -3958,10 +4888,19 @@ function startRenderLoop() {
     
     if (!mouseIsDown && now - myPlayer.lastShotTime > 380 && myPlayer.recoilIndex > 0) myPlayer.recoilIndex = 0;
 
+     
+    // 💡 如果正式進入暫停狀態，停止計算人物移動與 AI，但照常渲染畫面讓按鈕可以點擊
+      if (isGamePaused) {
+        renderer.render(scene, camera);
+        return;
+      }
+
     if (gunGroup) {
       gunGroup.position.z += (0 - gunGroup.position.z) * 14 * dt;
       gunGroup.rotation.x += (0 - gunGroup.rotation.x) * 14 * dt;
     }
+
+   
 
     const ch = document.getElementById('crosshair');
     if (ch) {
