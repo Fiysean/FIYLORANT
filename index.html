@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FIYLORANT v26.11.1</title>
+  <title>FIYLORANT v26.11.3</title>
   <style>
 
     /* 仿特戰英豪對戰報告面板（移到畫面中間偏右） */
@@ -158,7 +158,7 @@
 <div id="main-menu" class="overlay">
   <div class="panel">
     <h1>FIYLORANT</h1>
-    <p>v26.11.1</p>
+    <p>v26.11.3</p>
     
     <div class="form-group">
       <label>玩家暱稱</label>
@@ -181,6 +181,8 @@
     <div style="margin: 15px 0 5px; border-top: 1px solid #36404a;"></div>
     <div class="btn-group">
       <button class="btn-secondary" onclick="createRoom()">建立房間</button>
+      <!-- 💡 新增：退出遊戲按鈕 -->
+      <button class="btn-secondary" onclick="exitGame()" style="background: #281a1c; border-color: #ff4655; color: #ff4655;">退出遊戲</button>
     </div>
     
     <div class="form-group" style="margin-top: 10px;">
@@ -196,6 +198,11 @@
 <!-- 房間等待大廳 UI (5v5 特戰風) -->
 <div id="lobby-menu" class="overlay" style="display: none; background: rgba(15, 25, 35, 0.95); flex-direction: column; align-items: center; justify-content: center; z-index: 1000;">
   
+  <!-- 💡 新增：左上角返回主頁按鈕 -->
+  <button onclick="leaveLobbyToMain()" class="btn-secondary" style="position: absolute; top: 25px; left: 25px; width: auto; padding: 8px 16px; font-size: 13px; border-color: #36404a;">
+    ⬅ 返回主頁
+  </button>
+
   <h1 style="color: #ff4655; font-size: 28px; margin-bottom: 5px;">FIYLORANT 自定義房間</h1>
   <div id="lobby-code-display" style="color: #00ffcc; font-size: 16px; margin-bottom: 20px; font-weight: bold;">ROOM: -----</div>
   
@@ -267,6 +274,49 @@
   <button id="close-shop" onclick="closeShop()">關閉選單 (ESC)</button>
 </div>
 
+<!-- 📊 TAB 鍵戰術計分板 UI -->
+<div id="scoreboard" style="display: none; position: fixed; top: 15%; left: 50%; transform: translateX(-50%); width: 700px; background: rgba(15, 25, 35, 0.9); border: 1px solid #36404a; border-radius: 6px; padding: 20px; color: #fff; font-family: sans-serif; z-index: 9999; pointer-events: none;">
+  <div style="text-align: center; font-size: 20px; font-weight: bold; margin-bottom: 15px; color: #ff4655; letter-spacing: 2px;">FIYLORANT 戰術計分板</div>
+  
+  <div style="display: flex; justify-content: space-between; gap: 20px;">
+    <!-- 進攻方列表 -->
+    <div style="flex: 1;">
+      <div style="font-weight: bold; color: #ff4655; margin-bottom: 8px; border-bottom: 2px solid #ff4655; padding-bottom: 4px;">⚔️ 進攻方 (Attackers)</div>
+      <table style="width: 100%; font-size: 14px; text-align: left; border-collapse: collapse;">
+        <thead>
+          <tr style="color: #8b9bb4; font-size: 12px;">
+            <th style="padding: 4px;">玩家</th>
+            <th style="padding: 4px; text-align: center;">K</th>
+            <th style="padding: 4px; text-align: center;">D</th>
+            <th style="padding: 4px; text-align: center;">A</th>
+          </tr>
+        </thead>
+        <tbody id="scoreboard-attackers">
+          <!-- 動態填入 -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 防守方列表 -->
+    <div style="flex: 1;">
+      <div style="font-weight: bold; color: #00ffcc; margin-bottom: 8px; border-bottom: 2px solid #00ffcc; padding-bottom: 4px;">🛡️ 防守方 (Defenders)</div>
+      <table style="width: 100%; font-size: 14px; text-align: left; border-collapse: collapse;">
+        <thead>
+          <tr style="color: #8b9bb4; font-size: 12px;">
+            <th style="padding: 4px;">玩家</th>
+            <th style="padding: 4px; text-align: center;">K</th>
+            <th style="padding: 4px; text-align: center;">D</th>
+            <th style="padding: 4px; text-align: center;">A</th>
+          </tr>
+        </thead>
+        <tbody id="scoreboard-defenders">
+          <!-- 動態填入 -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <!-- 遊戲提示與鎖定滑鼠 -->
 <div id="instructions">
   <h2 style="color: #ff4655; margin-bottom: 10px;">點擊螢幕鎖定視角開始戰鬥</h2>
@@ -320,6 +370,136 @@
 </div>
 
 <script>
+
+  // 📊 追蹤玩家 KDA 的結構（確保你的 player 物件或這裡有記錄 kills, deaths, assists）
+// 如果原本的程式碼已經有記錄在 myPlayer / otherPlayers 裡面，可以直接抓取。
+// 這裡建立一個統一更新與顯示計分板的函式：
+
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Tab') {
+    e.preventDefault(); // 防止瀏覽器預設的切換焦點行為
+    const sb = document.getElementById('scoreboard');
+    if (sb) sb.style.display = 'block';
+    updateScoreboardData();
+  }
+});
+
+window.addEventListener('keyup', (e) => {
+  if (e.code === 'Tab') {
+    const sb = document.getElementById('scoreboard');
+    if (sb) sb.style.display = 'none';
+  }
+});
+
+function updateScoreboardData() {
+  const atkBody = document.getElementById('scoreboard-attackers');
+  const defBody = document.getElementById('scoreboard-defenders');
+  if (!atkBody || !defBody) return;
+
+  atkBody.innerHTML = '';
+  defBody.innerHTML = '';
+
+  // 收集所有玩家資料（包含自己與其他線上玩家 / Bot）
+  let allPlayers = [];
+  
+  if (myPlayer) {
+    allPlayers.push({
+      name: (myPlayer.name || 'Agent_1')+ '(我)', // 💡 直接抓你輸入框輸入的真實名字！
+      team: myPlayer.team,
+      kills: myPlayer.kills || 0,
+      deaths: myPlayer.deaths || 0,
+      assists: myPlayer.assists || 0
+    });
+  }
+
+  if (typeof otherPlayers !== 'undefined') {
+    Object.values(otherPlayers).forEach(p => {
+      allPlayers.push({
+        name: p.name || 'Agent_1', // 💡 確實抓取對方的即時名稱
+        team: p.team || 'defender',
+        kills: p.kills || 0,
+        deaths: p.deaths || 0,
+        assists: p.assists || 0
+      });
+    });
+  }
+
+  // 💡 【補上這一段】把收集到的玩家資料動態生成 HTML 填入計分板表格中！
+  allPlayers.forEach(p => {
+    let tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+    tr.innerHTML = `
+      <td style="padding: 6px 4px; color: #fff;">${p.name}</td>
+      <td style="padding: 6px 4px; text-align: center; color: #00ffcc;">${p.kills}</td>
+      <td style="padding: 6px 4px; text-align: center; color: #ff4655;">${p.deaths}</td>
+      <td style="padding: 6px 4px; text-align: center; color: #fff;">${p.assists}</td>
+    `;
+
+    if (p.team === 'attacker') {
+      atkBody.appendChild(tr);
+    } else {
+      defBody.appendChild(tr);
+    }
+  });
+}
+
+// 💡 1. 退出遊戲功能
+function exitGame() {
+  // 試圖直接關閉分頁
+  window.close();
+  
+  // 如果瀏覽器基於安全性限制無法自動關閉，跳出友善提示或導向空白頁
+  alert("感謝遊玩 FIYLORANT！您可以直接關閉此分頁或視窗。");
+  window.location.href = "about:blank";
+}
+
+// 💡 2. 暱稱自動記憶功能 (localStorage)
+window.addEventListener('DOMContentLoaded', () => {
+  const nameInput = document.getElementById('player-name-input');
+  if (nameInput) {
+    // 讀取瀏覽器先前記住的名字，若沒有則預設 Agent_1
+    const savedName = localStorage.getItem('fiylorant_player_name');
+    if (savedName) {
+      nameInput.value = savedName;
+    }
+
+    // 當玩家打字更改名字時，自動即時存入瀏覽器記憶體
+    nameInput.addEventListener('input', () => {
+      localStorage.setItem('fiylorant_player_name', nameInput.value.trim());
+    });
+  }
+});
+
+// 💡 從大廳安全返回主選單的函式
+function leaveLobbyToMain() {
+  if (isHost) {
+    // 💡 房主離開時，改發送房間關閉的通知
+    if (conn && conn.open) {
+      conn.send({ type: 'room_closed' });
+    }
+    alert("房主已離開大廳，房間已解散。");
+  } else {
+    // 客戶端主動離開的通知...
+    if (conn && conn.open) {
+      conn.send({ type: 'lobby_leave_room', id: peer.id });
+    }
+  }
+
+  // 銷毀連線與切換畫面...
+  if (peer) { peer.destroy(); peer = null; }
+  if (conn) { conn.close(); conn = null; }
+
+  document.getElementById('lobby-menu').style.display = 'none';
+  document.getElementById('main-menu').style.display = 'flex';
+
+  isMultiplayerGame = false;
+  isHost = false;
+  roomState.players = [];
+  
+  const statusTip = document.getElementById('menu-status');
+  if (statusTip) statusTip.innerText = '';
+}
+
 // --- 武器數據庫 ---
 const WEAPONS = {
   vandal:   { name: 'Vandal',   type: 'primary',   mag: 25, reserve: 75,  
@@ -498,7 +678,7 @@ function joinRoom() {
       document.getElementById('lobby-code-display').innerText = `ROOM: ${roomId}`; 
       
       // 🎯 確保這裡確實抓取了輸入框的暱稱，而不是寫死的字串！
-      let playerName = document.getElementById('player-name-input').value.trim() || 'Agent';
+      let playerName = document.getElementById('player-name-input').value.trim() || 'Agent_1';
       myPlayer.name = playerName;
       myPlayer.team = 'defender'; // 預設加入防守方
 
@@ -510,7 +690,7 @@ function joinRoom() {
 
 // 切換陣營
 function switchTeam(targetTeam) {
-  let playerName = document.getElementById('player-name-input').value.trim() || 'Agent';
+  let playerName = document.getElementById('player-name-input').value.trim() || 'Agent_1';
   myPlayer.team = targetTeam;
 
   if (isMultiplayerGame) {
@@ -999,6 +1179,9 @@ function createRoom() {
   
   let playerName = document.getElementById('player-name-input').value.trim() || 'Agent_1';
   
+  
+  myPlayer.name = playerName;
+
   // 初始化 5v5 陣列，將房主放入進攻方
   roomState.players = [{
     id: 'host',
@@ -1040,15 +1223,26 @@ function setupLobbyConnection() {
 
         roomState.players.push({ 
           id: conn.peer, 
-          name: data.name, 
+          name: data.name || 'Agent_1',  // 💡 確保確實抓到傳進來的名字！
           team: 'defender', 
           slotIndex: freeSlot, // 賦予防守方空位編號
           ready: false, 
           isHost: false 
         });
+      }else {
+        // 如果已經存在，更新名字與陣營
+        existing.name = data.name || 'Agent_1';
+        
       }
       broadcastLobbyState(); 
     }
+
+    else if (data.type === 'lobby_leave_room' && isHost) {
+      // 💡 房主收到客戶端主動離開的通知，直接把他從房間名單過濾掉！
+      roomState.players = roomState.players.filter(p => p.id !== data.id);
+      broadcastLobbyState(); // 廣播給所有人更新大廳畫面
+    }
+
     else if (data.type === 'lobby_update') { 
       roomState = data.state; 
 
@@ -1074,6 +1268,11 @@ function setupLobbyConnection() {
 
 else if (data.type === 'get_kicked') {
       kickToMainMenu("⚠️ 你已被房主踢出房間");
+    }
+
+    // 💡 新增：如果是房主離開導致房間解散，顯示溫和的提示
+    else if (data.type === 'room_closed') {
+      kickToMainMenu("⚠️ 房主已離開房間，大廳已關閉");
     }
 
     else if (data.type === 'lobby_toggle_ready' && isHost) { 
@@ -1117,7 +1316,9 @@ else if (data.type === 'get_kicked') {
       if (p && data.name) {
         p.name = data.name;
       }
-    
+      if (otherPlayers[data.id] && data.name) {
+        otherPlayers[data.id].name = data.name;
+      }
     }
     else if (data.type === 'shoot_effect') { 
       if(data.weapon !== 'knife') {
@@ -1188,6 +1389,41 @@ else if (data.type === 'get_kicked') {
       finalizeCombatReport();
       resetRound(); 
     }
+
+    else if (data.type === 'round_ended_buffer') {
+      // 1. 同步房主算好的分數並立刻更新介面
+      scoreAttacker = data.scoreAttacker;
+      scoreDefender = data.scoreDefender;
+      updateScoreUI(); 
+      
+      isRoundEnding = true; // 鎖定客戶端狀態
+
+      // 2. 客戶端同步啟動頂部計時器的 6 秒紅色倒數！
+      const timerElem = document.getElementById('timer');
+      let timeLeft = 6;
+      
+      if (timerElem) {
+        timerElem.style.color = '#ff4655'; // 變紅
+        timerElem.innerText = `0:0${timeLeft}`;
+      }
+
+      let clientCountdown = setInterval(() => {
+        timeLeft--;
+        if (timerElem && timeLeft >= 0) {
+          timerElem.innerText = `0:0${timeLeft}`;
+        }
+      }, 1000);
+
+      // 3. 6 秒後清除計時器顏色（等待接下來的 round_reset 指令來重置場上物件）
+      setTimeout(() => {
+        clearInterval(clientCountdown);
+        if (timerElem) {
+          timerElem.style.color = '#fff';
+        }
+      }, 6000);
+    }
+
+
     else if (data.type === 'match_end') { 
       scoreAttacker = data.scoreAttacker; scoreDefender = data.scoreDefender; updateScoreUI(); 
       alert(`🏆 比賽結束！${data.winner === 'attacker' ? '進攻方' : '防守方'} 贏得對戰！\n最終比分: ${scoreAttacker} - ${scoreDefender}`); 
@@ -1421,7 +1657,7 @@ function startGameFromLobby() {
   startTimer(); 
   startRenderLoop();
   
-  // 定期同步玩家位置
+  // 定期同步玩家位置與狀態
   setInterval(() => { 
     if (conn && conn.open) {
       conn.send({ 
@@ -1436,7 +1672,11 @@ function startGameFromLobby() {
         hp: myPlayer.hp, 
         isDead: myPlayer.isDead, 
         isCrouch: myPlayer.isCrouching, 
-        isJump: !myPlayer.isGrounded 
+        isJump: !myPlayer.isGrounded,
+        // 💡 【新增】把最新的 KDA 數據一起同步給其他人！
+        kills: myPlayer.kills || 0,
+        deaths: myPlayer.deaths || 0,
+        assists: myPlayer.assists || 0
       }); 
     }
   }, 33);
@@ -2234,6 +2474,10 @@ function performMeleeAttack(knifeStats) {
     }
 
     if (hitId) {
+
+      // 💡 【新增】在打下去之前，先記錄他原本是不是已經死掉了
+      let wasDead = otherPlayers[hitId] ? otherPlayers[hitId].isDead : false;
+
       playSound('headshot'); 
       
       let isBackstab = false;
@@ -2290,9 +2534,16 @@ function performMeleeAttack(knifeStats) {
       }
 
       if (otherPlayers[hitId]) {
-        applyDamage(hitId, dmg, isBackstab);
+        // 💡 【重要】這裡必須把你自己的 ID 與名字（myPlayer.id, myPlayer.name）傳進去！
+        applyDamage(hitId, dmg, isBackstab, weaponName, myPlayer.id, myPlayer.name);
         let enemyRealName = otherPlayers[hitId].name || 'Agent_1';
         recordDamage(myPlayer.id, hitId, enemyRealName, dmg, 'body', weaponName);
+
+        // 💡 【新增】如果拿刀把對方砍死，你的 K + 1！
+        if (!wasDead && otherPlayers[hitId].isDead) {
+          myPlayer.kills = (myPlayer.kills || 0) + 1;
+        }
+
       }
     } else {
       createHitEffect(hitPoint.x, hitPoint.y, hitPoint.z, false, 0x888888); 
@@ -2430,18 +2681,39 @@ function executeRaycastShot(weapon, dir, isPellet) {
           attackerName: myPlayer.name,
           weapon: weapon.name
         });
+
+        
+
       }
 
+
+
       if (otherPlayers[hitId]) {
+        // 先記錄他原本有沒有死
+        let wasDead = otherPlayers[hitId].isDead;
+        console.log("🎯 [偵測] 打中玩家:", hitId, "打之前是否已經死掉:", wasDead, "當前血量:", otherPlayers[hitId].hp);
+
+        // 執行扣血
         applyDamage(hitId, dmg, isHead, weapon.name, myPlayer.id, myPlayer.name);
-        let enemyName = otherPlayers[hitId].name || 'Agent';
+        
+        let enemyName = otherPlayers[hitId].name || 'Agent_1';
         recordDamage(myPlayer.id, hitId, enemyName, dmg, hitPart, weapon.name);
+
+        console.log("💀 [偵測] 扣血後，是否變成死掉:", otherPlayers[hitId].isDead, "剩餘血量:", otherPlayers[hitId].hp);
+
+        // 💡 如果他原本沒死，但扣血後變成死了（isDead），代表這一槍是你親手收掉他的！
+        if (!wasDead && otherPlayers[hitId].isDead) {
+          myPlayer.kills = (myPlayer.kills || 0) + 1;
+          console.log("🎉 [成功加分] 你的 K 增加了！目前 K =", myPlayer.kills);
+
+        }
+      } 
+      else {
+        // 💡 這裡就是處理「打到牆壁或障礙物」的特效，一定要保留！
+        createHitEffect(hitPoint.x, hitPoint.y, hitPoint.z, false, 0x888888);
       }
-    } else {
-      createHitEffect(hitPoint.x, hitPoint.y, hitPoint.z, false, 0x888888);
-    }
   }
-}
+}}
 
 
 function showHitIndicator(dmg, isHeadshot) {
@@ -2476,12 +2748,21 @@ function handleInGameData(data) {
       team: data.team, 
       isDead: data.isDead, 
       yaw: 0, 
-      name: data.name || 'Agent' // 🎯 關鍵：初始化時把對方的暱稱存起來！
+      name: data.name || 'Agent_1', // 🎯 關鍵：初始化時把對方的暱稱存起來！
+      // 💡 【新增】初始化時建立 KDA 屬性
+      kills: data.kills || 0,
+      deaths: data.deaths || 0,
+      assists: data.assists || 0
     }; 
   }
   
   otherPlayers[targetId].hp = data.hp; 
   otherPlayers[targetId].isDead = data.isDead;
+  
+  // 💡 【新增】隨時同步對方的最新 KDA 數據
+  otherPlayers[targetId].kills = data.kills || 0;
+  otherPlayers[targetId].deaths = data.deaths || 0;
+  otherPlayers[targetId].assists = data.assists || 0;
   
   // 🎯 確保隨時同步對方的最新暱稱
   if (data.name) {
@@ -2533,7 +2814,21 @@ function applyDamage(playerId, dmg, isHeadshot, weaponUsed, attackerId, attacker
     recordDamage(realAttackerId, myPlayer.id, realAttackerName, dmg, hitLocation, finalWeapon);
 
     if (isHeadshot) { document.getElementById('hud').style.background = 'rgba(255,0,0,0.3)'; setTimeout(() => document.getElementById('hud').style.background = 'transparent', 150); }
-    if (myPlayer.hp <= 0) { myPlayer.hp = 0; myPlayer.isDead = true; document.getElementById('hp-val').innerText = 'DEAD'; checkWinCondition(); }
+
+    if (myPlayer.hp <= 0) { 
+      myPlayer.hp = 0; 
+      myPlayer.isDead = true; 
+      document.getElementById('hp-val').innerText = 'DEAD'; 
+      
+      // 💡 【新增】自己死了，死亡數 D + 1
+      myPlayer.deaths = (myPlayer.deaths || 0) + 1;
+
+    
+
+
+      checkWinCondition(); 
+    }
+
   } else if (otherPlayers[playerId]) {
     if (otherPlayers[playerId].isDead) return;
     
@@ -2542,6 +2837,12 @@ function applyDamage(playerId, dmg, isHeadshot, weaponUsed, attackerId, attacker
     
     if (otherPlayers[playerId].hp <= 0) {
       otherPlayers[playerId].hp = 0; otherPlayers[playerId].isDead = true;
+
+      // 💡 【新增這裡】當遠端玩家死掉時，檢查是不是「你」打死他的？如果是，你的 K + 1！
+      /*if (attackerId === myPlayer.id) {
+        myPlayer.kills = (myPlayer.kills || 0) + 1;
+      }*/
+
       if (otherPlayers[playerId].mesh) { scene.remove(otherPlayers[playerId].mesh); playerMeshes = playerMeshes.filter(m=>m!==otherPlayers[playerId].mesh); otherPlayers[playerId].mesh = null; }
       checkWinCondition();
     }
@@ -2591,29 +2892,72 @@ function checkWinCondition() {
   }
 }
 
+// --- 1. 第一部分：處理 6 秒倒數與分數鎖定期間 ---
 function handleRoundEnd(winnerTeam) {
-  if (gameMode === 'range' || isRoundEnding) return; isRoundEnding = true;
+  if (gameMode === 'range' || isRoundEnding) return; 
+  isRoundEnding = true; // 🔒 鎖定！立刻阻止重複判定與加分
+
+  // 只有房主負責計算總分與控制回合節奏
   if (isMultiplayerGame && !isHost) return;
 
-  // 🎯 修正一：換邊後分數計算正確對應原本的隊伍
+  // 1. 結算並累加分數
   if (!hasSwappedSide) {
     if (winnerTeam === 'attacker') scoreAttacker++; 
     else scoreDefender++;
   } else {
-    // 換邊後，當前扮演進攻方/防守方的贏家，要回饋給原本的隊伍分數
     if (winnerTeam === 'attacker') scoreDefender++; 
     else scoreAttacker++;
   }
   updateScoreUI();
 
+  let matchWinnerName = winnerTeam === 'attacker' ? '進攻方' : '防守方';
+  console.log(`🎉 回合結束！${matchWinnerName} 獲勝。進入 6 秒自由交火緩衝期...`);
+
+  // 💡 直接抓取 id="timer" 的元素，讓頂部時間列開始 6 秒紅色倒數
+  const timerElem = document.getElementById('timer');
+  let timeLeft = 6;
+  
+  if (timerElem) {
+    timerElem.style.color = '#ff4655'; // 變成特戰紅提示進入結算緩衝
+    timerElem.innerText = `0:0${timeLeft}`;
+  }
+
+  // 每秒更新頂部時間列
+  let countdownInterval = setInterval(() => {
+    timeLeft--;
+    if (timerElem && timeLeft >= 0) {
+      timerElem.innerText = `0:0${timeLeft}`;
+    }
+  }, 1000);
+
+  // 💡 如果是多人連線，通知客戶端同步進入緩衝狀態
+  if (isMultiplayerGame && isHost && conn && conn.open) {
+    conn.send({ type: 'round_ended_buffer', scoreAttacker, scoreDefender, winner: winnerTeam });
+  }
+
+  // 2. 6 秒後清除倒數計時器，並交給第二個函式執行後續重置
+  setTimeout(() => {
+    clearInterval(countdownInterval);
+    if (timerElem) {
+      timerElem.style.color = '#fff'; // 恢復原本白色
+    }
+    executeAutoResetAfterBuffer(winnerTeam);
+  }, 6000);
+}
+
+// --- 2. 第二部分：處理 6 秒結束後的勝負判定、換邊與重置 ---
+function executeAutoResetAfterBuffer(winnerTeam) {
   let isMatchWon = false; 
   let matchWinnerName = winnerTeam === 'attacker' ? '進攻方' : '防守方';
+  
   if (scoreAttacker >= 13 && (scoreAttacker - scoreDefender >= 2)) isMatchWon = true; 
   else if (scoreDefender >= 13 && (scoreDefender - scoreAttacker >= 2)) isMatchWon = true;
 
   if (isMatchWon) {
     alert(`🏆 比賽結束！${matchWinnerName} 贏得了整場比賽！\n最終比分: ${scoreAttacker} - ${scoreDefender}`);
-    if (isMultiplayerGame && isHost && conn && conn.open) conn.send({ type: 'match_end', scoreAttacker, scoreDefender, winner: winnerTeam });
+    if (isMultiplayerGame && isHost && conn && conn.open) {
+      conn.send({ type: 'match_end', scoreAttacker, scoreDefender, winner: winnerTeam });
+    }
     resetMatch(); 
   } else {
     let otMsg = (scoreAttacker >= 12 && scoreDefender >= 12) ? " (延長賽！)" : "";
@@ -2624,21 +2968,47 @@ function handleRoundEnd(winnerTeam) {
         hasSwappedSide = true;
         myPlayer.team = myPlayer.team === 'attacker' ? 'defender' : 'attacker';
         
-        // 🎯 修正二：正確切換 Bot 與其他玩家的陣營（原本寫錯成全部變 defender）
+        // 正確切換 Bot 與其他玩家的陣營
         Object.values(otherPlayers).forEach(p => { 
           p.team = p.team === 'attacker' ? 'defender' : 'attacker'; 
         });
         
-        alert(`回合結束！${matchWinnerName} 勝出！${otMsg}\n⚠️ 攻守交換！`);
+        console.log(`⚠️ 攻守交換！${otMsg}`);
     } else {
-        alert(`回合結束！${matchWinnerName} 勝出！${otMsg}`);
+        console.log(`回合結束！${matchWinnerName} 勝出！${otMsg}`);
     }
-    if (isMultiplayerGame && isHost && conn && conn.open) conn.send({ type: 'round_reset', scoreAttacker, scoreDefender });
+    
+    // 廣播給客戶端進行回合重置
+    if (isMultiplayerGame && isHost && conn && conn.open) {
+      conn.send({ type: 'round_reset', scoreAttacker, scoreDefender });
+    }
     resetRound();
   }
 }
-function resetMatch() { scoreAttacker = 0; scoreDefender = 0; hasSwappedSide = false; updateScoreUI(); resetRound(); }
+function resetMatch() {
+  scoreAttacker = 0;
+  scoreDefender = 0;
+  hasSwappedSide = false;
+  updateScoreUI();
 
+  // 💡 重置所有玩家的計分板數據 (Kills / Deaths)
+  if (typeof myPlayer !== 'undefined' && myPlayer) {
+    myPlayer.kills = 0;
+    myPlayer.deaths = 0;
+  }
+  
+  if (typeof otherPlayers !== 'undefined') {
+    Object.values(otherPlayers).forEach(p => {
+      p.kills = 0;
+      p.deaths = 0;
+    });
+  }
+
+  // 如果你有維護 TAB 記分板的 UI 更新函式，這裡也可以順便呼叫
+  // updateScoreboardUI(); 
+
+  resetRound();
+}
 function triggerMuzzleEffect() { muzzleLight.intensity = 6; muzzleMesh.material.opacity = 1; setTimeout(() => { muzzleLight.intensity = 0; muzzleMesh.material.opacity = 0; }, 45); }
 function createTracerLine(x, y, z, dir, isLocal, dist = 60) {
   const start = new THREE.Vector3(x, y, z); const end = start.clone().add(dir.clone().multiplyScalar(dist));
@@ -3681,14 +4051,14 @@ function recordDamage(attackerId, targetId, targetName, damage, hitPart, weaponU
   }
 
   // 🎯 絕對強制的名稱抓取邏輯
-  let realName = 'Agent';
+  let realName = 'Agent_1';
   
   // 優先順序 1：從函式直接傳進來的 targetName / attackerName
-  if (targetName && targetName !== 'Agent' && targetName !== '敵人') {
+  if (targetName && targetName !== 'Agent_1' && targetName !== '敵人') {
     realName = targetName;
   } 
   // 優先順序 2：從 otherPlayers 裡面找
-  else if (otherPlayers[enemyId] && otherPlayers[enemyId].name && otherPlayers[enemyId].name !== 'Agent') {
+  else if (otherPlayers[enemyId] && otherPlayers[enemyId].name && otherPlayers[enemyId].name !== 'Agent_1') {
     realName = otherPlayers[enemyId].name;
   } 
   // 優先順序 3：從 roomState.players 裡面直接對應 ID 抓名字（保證抓到大廳設定的名稱！）
@@ -3700,8 +4070,8 @@ function recordDamage(attackerId, targetId, targetName, damage, hitPart, weaponU
   }
 
   // 如果還是找不到，抓 otherPlayers 裡面任何一個不是 Agent 的名字
-  if (realName === 'Agent') {
-    let altKey = Object.keys(otherPlayers).find(k => otherPlayers[k].name && otherPlayers[k].name !== 'Agent');
+  if (realName === 'Agent_1') {
+    let altKey = Object.keys(otherPlayers).find(k => otherPlayers[k].name && otherPlayers[k].name !== 'Agent_1');
     if (altKey) {
       realName = otherPlayers[altKey].name;
     }
@@ -3721,7 +4091,7 @@ function recordDamage(attackerId, targetId, targetName, damage, hitPart, weaponU
   }
   
   // 🎯 隨時更新為最新、最正確的真實暱稱
-  if (realName && realName !== 'Agent') {
+  if (realName && realName !== 'Agent_1') {
     currentRoundCombatData[enemyId].name = realName;
   }
   
