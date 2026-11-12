@@ -2630,19 +2630,37 @@ function startSingleplayer() {
    createBot(); startTimer(); startRenderLoop();
 }
 
-// --- 啟動 50m 訓練場模式 ---
+// --- 啟動 50m 訓練場模式 (安全防護版) ---
 function startRangeMode() {
   isMultiplayerGame = false; gameMode = 'range'; myPlayer.id = 'player_local'; myPlayer.team = 'attacker';
   myPlayer.x = 0; myPlayer.y = 1.6; myPlayer.z = 22; 
   
-  document.getElementById('main-menu').style.display = 'none'; document.getElementById('hud').style.display = 'block'; 
-  document.getElementById('room-tag').innerText = `🎯 50m 訓練場 (按 B 隨時換槍)`;
-  document.getElementById('shop-key-tip').innerText = 'B: 換槍選單';
-  document.getElementById('timer').style.display = 'none';
-  document.getElementById('score-attacker').style.display = 'none';
-  document.getElementById('score-defender').style.display = 'none';
+  const mainMenu = document.getElementById('main-menu');
+  const hud = document.getElementById('hud');
+  const roomTag = document.getElementById('room-tag');
+  const shopKeyTip = document.getElementById('shop-key-tip');
+  const timer = document.getElementById('timer');
+  const scoreAttacker = document.getElementById('score-attacker');
+  const scoreDefender = document.getElementById('score-defender');
+
+  if (mainMenu) mainMenu.style.display = 'none'; 
+  if (hud) hud.style.display = 'block'; 
+  if (roomTag) roomTag.innerText = `🎯 50m 訓練場 (按 B 隨時換槍)`;
+  
+  // 💡 安全檢查：如果網頁上有這個提示元素才賦值，沒有就不執行也不會報錯
+  if (shopKeyTip) shopKeyTip.innerText = 'B: 換槍選單';
+  
+  if (timer) timer.style.display = 'none';
+  if (scoreAttacker) scoreAttacker.style.display = 'none';
+  if (scoreDefender) scoreDefender.style.display = 'none';
 
   initRangeEngine(); startRenderLoop();
+
+  // 💡 關鍵：啟動訓練場時，強制鎖定滑鼠並啟用視角控制！
+  if (renderer && renderer.domElement) {
+    renderer.domElement.requestPointerLock();
+  }
+  isLocked = true; // 確保你的視角移動開關打開
 }
 
 // --- 初始化 3D 引擎 ---
