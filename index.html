@@ -1979,8 +1979,8 @@ function findPathToB(bot) {
     
     // 💡 確保所有經由點的順序都是從「防守方/全圖各處」順著走向 B 點 (節點 6)
     if (choice < 0.25) {
-        tacticalWaypoints = [22, 24, targetSiteNode];
-        console.warn("電腦選擇22 ➔ 24 ➔ 6");
+        tacticalWaypoints = [22, 24, 26, targetSiteNode];
+        console.warn("電腦選擇22 ➔ 24 ➔ 26 ➔ 6");
     } else if (choice < 0.50) {
         tacticalWaypoints = [22, 25, 26, targetSiteNode];
         console.warn("電腦選擇22 ➔ 25 ➔ 26 ➔ 6");  
@@ -1988,8 +1988,8 @@ function findPathToB(bot) {
         tacticalWaypoints = [13, 12, targetSiteNode];
         console.warn("電腦選擇13 ➔ 12 ➔ 6");
     } else {
-        tacticalWaypoints = [13, 12, 0, 21, targetSiteNode]; // 順暢的 B 點大繞後主幹
-        console.warn("電腦選擇13 ➔ 12 ➔ 0 ➔ 21 ➔ 6"); 
+        tacticalWaypoints = [13, 12, 10, 0, 21, targetSiteNode]; // 順暢的 B 點大繞後主幹
+        console.warn("電腦選擇13 ➔ 12 ➔ 10 ➔ 0 ➔ 21 ➔ 6"); 
     }
     
     let waypoints = [startNode, ...tacticalWaypoints];
@@ -4828,7 +4828,7 @@ function updateBotLogic(dt, now) {
                       let distToA = Math.hypot(spike.x - sites.A.x, spike.z - sites.A.z);
                       let distToB = Math.hypot(spike.x - sites.B.x, spike.z - sites.B.z);
 
-                      if (sDist <= 4.0) {
+                      if (sDist <=3.0) {
           // 距離 Spike 4 公尺內，直接朝 Spike 移動準備拆包
           moveBotTowards(bot, spike.x, spike.z, dt, 1.5);
       } else {
