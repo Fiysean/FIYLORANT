@@ -1767,9 +1767,9 @@ const navEdges = {
   // 防守方支援連線
   22: [13, 23, 24, 25],
   23: [5, 22],
-  24: [6, 22],
+  24: [6, 22, 26],
   25: [21, 22, 26],
-  26: [6, 25],
+  26: [6, 24, 25],
 };
 
 function getNearestNode(x, z) {
@@ -1792,7 +1792,7 @@ function findPath(start, target) {
 }
 
 // ==========================================
-// 🎯 進攻方（T）戰術導航函式庫（已加入防呆保護）
+// 🎯 進攻方（T）戰術導航函式庫（已修復多點序列與防呆保護）
 // ==========================================
 
 // 1. 【Rush A 或 Rush B】直接以最快速度直線衝點
@@ -1804,10 +1804,10 @@ function getAttackerRushPath(bot, site) {
   return (path && path.length > 0) ? path : [targetNode]; // 確保至少有節點可走
 }
 
-// 2. 【慢打 / 等 20 秒再出發】先到中路或進攻口附近集合/蹲點
+// 2. 【慢打策略】先到中路或進攻口附近集合/蹲點
 function getAttackerSlowPlayPath(bot) {
-  console.log("電腦選擇慢打策略");
-  let startNode = 0; // 強制從節點 0 出發，避免在家撞牆
+  console.log("電腦選擇慢打策略，前往中路集合");
+  let startNode = getNearestNode(bot.x, bot.z); 
   let gatheringNodes = [10, 11, 27]; // 中路集合點
   let targetNode = gatheringNodes[Math.floor(Math.random() * gatheringNodes.length)];
   
@@ -1832,29 +1832,35 @@ function getAttackerControlLongPath(bot, site) {
   return path;
 }
 
-// 4. 【中路轉 A/B 小進點】從中路打進去，然後轉 A小(28) 或 B小(12) 夾擊
+// 4. 【中路轉 A/B 小進點】從中路打進去，並依照順序經過指定經由點夾擊
 function getAttackerMidSplitPath(bot, site) {
   console.log("電腦選擇中路轉 " + site + " 小進點");
   let startNode = getNearestNode(bot.x, bot.z);
   let midNode = 27; // 中路核心點
-  let splitNode = (site === 'A') ? 28 : 12; // A小 或 B小
-  let siteNode = (site === 'A') ? 5 : 6;
+  let targetSiteNode = (site === 'A') ? 5 : 6;
   
-  let leg1 = findPath(startNode, midNode);
-  let leg2 = findPath(midNode, splitNode);
-  let leg3 = findPath(splitNode, siteNode);
+  // 💡 參照防守方的陣列寫法：精準依序經過你指定的戰術節點
+  let tacticalWaypoints = [];
+  if (site === 'A') {
+      tacticalWaypoints = [midNode, 12, 13, 28, 18, targetSiteNode]; // 依照你的要求依序經過 12 ➔ 13 ➔ 28 ➔ 18 ➔ A點
+  } else {
+      tacticalWaypoints = [midNode, 12, 21, targetSiteNode]; // B小夾擊路線
+  }
   
-  // 💡 防呆保護：如果任何一段拼接失敗（回傳 null 或空），直接改用簡單的 Rush 路線，避免程式當機
-  if (!leg1 || leg1.length === 0 || !leg2 || leg2.length === 0 || !leg3 || leg3.length === 0) {
+  let waypoints = [startNode, ...tacticalWaypoints];
+  let path = getWaypointPath(waypoints, startNode, targetSiteNode);
+  
+  // 💡 防呆保護：如果組合失敗，自動改用簡單的 Rush 路線，避免程式當機
+  if (!path || path.length === 0) {
       console.warn("⚠️ 中路夾擊路徑組合失敗，自動改為直接 Rush 路線");
       return getAttackerRushPath(bot, site);
   }
   
-  return leg1.concat(leg2.slice(1), leg3.slice(1));
+  return path;
 }
 
 // ==========================================
-// 💡 進攻方總指揮分派函式（加上 currentStrategy 設定確保安包）
+// 💡 進攻方總指揮分派函式
 // ==========================================
 function getAttackerPathByStrategy(bot) {
   switch (bot.strategy) {
@@ -1865,13 +1871,13 @@ function getAttackerPathByStrategy(bot) {
       bot.currentStrategy = 'site_B';
       return getAttackerRushPath(bot, 'B');
     case 'slowPlay':
-      bot.currentStrategy = 'mid_push'; // 標記正在中路慢打
+      bot.currentStrategy = 'mid_push'; 
       return getAttackerSlowPlayPath(bot);
     case 'controlA':
-      bot.currentStrategy = 'controlling_long_A'; // 標記正在控 A 大路
+      bot.currentStrategy = 'controlling_long_A'; 
       return getAttackerControlLongPath(bot, 'A');
     case 'controlB':
-      bot.currentStrategy = 'controlling_long_B'; // 標記正在控 B 大路
+      bot.currentStrategy = 'controlling_long_B'; 
       return getAttackerControlLongPath(bot, 'B');
     case 'midSplitA':
       bot.currentStrategy = 'site_A'; 
@@ -1887,6 +1893,9 @@ function getAttackerPathByStrategy(bot) {
 
 function pickRandomStrategy(bot) {
     let roll = Math.random();
+    // 每次重新選擇策略時，順便重置該 bot 的 20 秒慢打計時器
+    bot.slowPlayWaitEnd = null; 
+    
     if (roll < 0.30) {
         bot.currentStrategy = 'mid_push';
         bot.strategy = 'slowPlay';
@@ -1925,10 +1934,10 @@ function getWaypointPath(waypoints, fallbackStart, fallbackTarget) {
     }
 
     // 💡 最終保底：如果組裝出來的總路徑小於 2 個點，代表整條戰術經由點幾乎全斷了，直接強制直奔目標點！
-    if (!fullPath || fullPath.length < 2) {
+    /*if (!fullPath || fullPath.length < 2) {
         console.warn(`⚠️ [路徑過短保底] 經由點串接失敗，強制直奔目標點 [${fallbackTarget}]`);
         fullPath = findPath(fallbackStart, fallbackTarget) || [fallbackTarget];
-    }
+    }*/
     
     return fullPath;
 }
@@ -1947,20 +1956,50 @@ function findPathToA(bot) {
     let choice = Math.random();
     let tacticalWaypoints = [];
     
-    // 💡 確保所有經由點的順序都是從「防守方/全圖各處」順著走向 A 點 (節點 5)
     if (choice < 0.33) {
         tacticalWaypoints = [22, 23, targetSiteNode];
-        console.warn("電腦選擇22 ➔ 23 ➔ 5");
+        console.warn("電腦選擇 22 ➔ 23 ➔ 5");
     } else if (choice < 0.66) {
-        tacticalWaypoints = [13, 28, targetSiteNode];
-        console.warn("電腦選擇13 ➔ 28 ➔ 5");
+        tacticalWaypoints = [13, 28, 18, targetSiteNode];
+        console.warn("電腦選擇 13 ➔ 28 ➔ 5");
     } else {
-        tacticalWaypoints = [13, 12, 0 , 16, targetSiteNode]; // 順暢的大繞後主幹
-        console.warn("電腦選擇13 ➔ 12 ➔ 0 ➔ 16 ➔ 5"); 
+        tacticalWaypoints = [12, 27, 10, 0, 16, 17, 28, 18, targetSiteNode]; 
+        console.warn("電腦選擇 12 ➔ 0 ➔ 16 ➔ 5"); 
     }
     
     let waypoints = [startNode, ...tacticalWaypoints];
-    return getWaypointPath(waypoints, startNode, targetSiteNode);
+    waypoints = waypoints.filter((node, index) => index === 0 || node !== waypoints[index - 1]);
+    
+    let finalPath = [];
+    let currentNode = startNode;
+
+    for (let i = 0; i < waypoints.length - 1; i++) {
+        let fromNode = waypoints[i];
+        let toNode = waypoints[i + 1];
+        
+        if (fromNode === toNode) continue;
+        
+        let segment = findPath(fromNode, toNode);
+        
+        if (segment && segment.length > 0) {
+            finalPath = finalPath.concat(segment); // 保持原本正常的直接合併
+            currentNode = toNode;
+        } else {
+            console.warn(`⚠️ [路徑斷開] 從 [${fromNode}] 到 [${toNode}] 失敗，啟動直達 A 點救援！`);
+            let rescueSegment = findPath(currentNode, targetSiteNode);
+            if (rescueSegment && rescueSegment.length > 0) {
+                finalPath = finalPath.concat(rescueSegment);
+            }
+            break;
+        }
+    }
+    // 🌟 就是這裡！把所有多段拼接產生的相鄰重複節點過濾掉
+    finalPath = finalPath.filter((node, index) => index === 0 || node !== finalPath[index - 1]);
+
+    if (!finalPath || finalPath.length <= 1) {
+        return findPath(startNode, targetSiteNode) || [targetSiteNode];
+    }
+    return finalPath;
 }
 
 function findPathToB(bot) {
@@ -1977,23 +2016,52 @@ function findPathToB(bot) {
     let choice = Math.random();
     let tacticalWaypoints = [];
     
-    // 💡 確保所有經由點的順序都是從「防守方/全圖各處」順著走向 B 點 (節點 6)
     if (choice < 0.25) {
         tacticalWaypoints = [22, 24, 26, targetSiteNode];
-        console.warn("電腦選擇22 ➔ 24 ➔ 26 ➔ 6");
+        console.warn("電腦選擇 22 ➔ 24 ➔ 26 ➔ 6");
     } else if (choice < 0.50) {
         tacticalWaypoints = [22, 25, 26, targetSiteNode];
-        console.warn("電腦選擇22 ➔ 25 ➔ 26 ➔ 6");  
+        console.warn("電腦選擇 22 ➔ 25 ➔ 26 ➔ 6");  
     } else if (choice < 0.75) {
-        tacticalWaypoints = [13, 12, targetSiteNode];
-        console.warn("電腦選擇13 ➔ 12 ➔ 6");
+        tacticalWaypoints = [12, 21, targetSiteNode];
+        console.warn("電腦選擇 12 ➔ 21 ➔ 6");
     } else {
-        tacticalWaypoints = [13, 12, 10, 0, 21, targetSiteNode]; // 順暢的 B 點大繞後主幹
-        console.warn("電腦選擇13 ➔ 12 ➔ 10 ➔ 0 ➔ 21 ➔ 6"); 
+        tacticalWaypoints = [12, 27, 10, 0, 2, 19, 21, targetSiteNode]; 
+        console.warn("電腦選擇 12 ➔ 27 ➔ 10 ➔ 0 ➔ 2 ➔ 19 ➔ 21 ➔ 6"); 
     }
     
     let waypoints = [startNode, ...tacticalWaypoints];
-    return getWaypointPath(waypoints, startNode, targetSiteNode);
+    waypoints = waypoints.filter((node, index) => index === 0 || node !== waypoints[index - 1]);
+    
+    let finalPath = [];
+    let currentNode = startNode;
+
+    for (let i = 0; i < waypoints.length - 1; i++) {
+        let fromNode = waypoints[i];
+        let toNode = waypoints[i + 1];
+        
+        if (fromNode === toNode) continue;
+        
+        let segment = findPath(fromNode, toNode);
+        
+        if (segment && segment.length > 0) {
+            finalPath = finalPath.concat(segment); // 保持原本正常的直接合併
+            currentNode = toNode;
+        } else {
+            console.warn(`⚠️ [路徑斷開] 從 [${fromNode}] 到 [${toNode}] 失敗，啟動直達 B 點救援！`);
+            let rescueSegment = findPath(currentNode, targetSiteNode);
+            if (rescueSegment && rescueSegment.length > 0) {
+                finalPath = finalPath.concat(rescueSegment);
+            }
+            break;
+        }
+    }
+    // 🌟 就是這裡！把所有多段拼接產生的相鄰重複節點過濾掉
+    finalPath = finalPath.filter((node, index) => index === 0 || node !== finalPath[index - 1]);
+    if (!finalPath || finalPath.length <= 1) {
+        return findPath(startNode, targetSiteNode) || [targetSiteNode];
+    }
+    return finalPath;
 }
 
 let peer = null, conn = null; let mouseIsDown = false;
@@ -4397,18 +4465,18 @@ function moveBotTowards(bot, targetX, targetZ, dt, stopDist) {
   let dx = targetX - bot.x; let dz = targetZ - bot.z;
   let dist = Math.hypot(dx, dz);
 
+  if (dist <= stopDist) return true; // 已經到達目標
+
   // 初始化防卡牆變數
   if (bot.lastPosCheckTimer === undefined) bot.lastPosCheckTimer = 0;
   if (!bot.stuckCheckPos) bot.stuckCheckPos = { x: bot.x, z: bot.z };
-  if (bot.avoidDir === undefined) bot.avoidDir = 1;
 
-  // 🛡️ 防呆保險：每 0.6 秒檢查一次，若卡死不動則強制重置路徑重新尋路
+  // 🛡️ 防呆保險：每 0.6 秒檢查一次，若真卡死不動（例如卡在死角）才強制重置路徑
   bot.lastPosCheckTimer += dt;
   if (bot.lastPosCheckTimer > 0.6) {
     let movedDist = Math.hypot(bot.x - bot.stuckCheckPos.x, bot.z - bot.stuckCheckPos.z);
     if (movedDist < 0.15 && dist > stopDist) {
-      bot.avoidDir *= -1;
-      bot.path = []; 
+      bot.path = []; // 真的卡死才重置路徑
       bot.stuckCheckPos = { x: bot.x, z: bot.z };
       bot.lastPosCheckTimer = 0;
       return false;
@@ -4417,39 +4485,57 @@ function moveBotTowards(bot, targetX, targetZ, dt, stopDist) {
     bot.lastPosCheckTimer = 0;
   }
 
-  if (dist > stopDist) {
-      let speed = 4.5;
-      let bNextX = bot.x + (dx / dist) * speed * dt;
-      let bNextZ = bot.z + (dz / dist) * speed * dt;
+  let speed = 4.5;
+  let vx = (dx / dist) * speed * dt;
+  let vz = (dz / dist) * speed * dt;
 
-      let bCollideX = false; let bCollideZ = false;
-      for (let w of walls) {
-          if (isColliding(bNextX, bot.z, w)) bCollideX = true;
-          if (isColliding(bot.x, bNextZ, w)) bCollideZ = true;
+  let bNextX = bot.x + vx;
+  let bNextZ = bot.z + vz;
+
+  // 1. 檢測完整移動是否撞牆
+  let fullCollide = false;
+  for (let w of walls) {
+      if (isColliding(bNextX, bNextZ, w)) {
+          fullCollide = true;
+          break;
       }
-
-      // 如果撞牆，執行平穩的單向側滑
-      if (bCollideX || bCollideZ) {
-          let sideAngle = Math.atan2(-dx, -dz) + (Math.PI / 2) * bot.avoidDir;
-          let avoidSpeed = (dist < 4.0) ? 0.4 : 0.8; 
-          
-          bNextX = bot.x + Math.sin(sideAngle) * speed * dt * avoidSpeed;
-          bNextZ = bot.z + Math.cos(sideAngle) * speed * dt * avoidSpeed;
-
-          let sideCollide = false;
-          for (let w of walls) {
-              if (isColliding(bNextX, bNextZ, w)) { sideCollide = true; break; }
-          }
-          if (sideCollide) { bot.path = []; return false; }
-      }
-
-      bot.x = bNextX; bot.z = bNextZ;
-      bot.mesh.position.set(bot.x, 0, bot.z);
-      bot.yaw = Math.atan2(-dx, -dz);
-      bot.mesh.rotation.y = bot.yaw;
-      return false; 
   }
-  return true; 
+
+  if (!fullCollide) {
+      // 沒撞牆，直走
+      bot.x = bNextX;
+      bot.z = bNextZ;
+  } else {
+      // 2. 撞牆了！實作真正的獨立軸向滑動（沿著牆壁滑行）
+      let collideX = false;
+      let collideZ = false;
+
+      for (let w of walls) {
+          if (isColliding(bot.x + vx, bot.z, w)) collideX = true;
+          if (isColliding(bot.x, bot.z + vz, w)) collideZ = true;
+      }
+
+      let moved = false;
+      // 如果 X 軸方向沒撞牆，允許 X 軸移動
+      if (!collideX && vx !== 0) {
+          bot.x += vx;
+          moved = true;
+      }
+      // 如果 Z 軸方向沒撞牆，允許 Z 軸移動
+      if (!collideZ && vz !== 0) {
+          bot.z += vz;
+          moved = true;
+      }
+
+      // 如果兩軸都完全卡死（正面撞牆），讓防呆計時器去處理，這裡不主動清空 path
+  }
+
+  // 更新網格位置與面向
+  bot.mesh.position.set(bot.x, 0, bot.z);
+  bot.yaw = Math.atan2(-dx, -dz);
+  bot.mesh.rotation.y = bot.yaw;
+  
+  return false; 
 }
 
  
@@ -4524,34 +4610,28 @@ function updateBotLogic(dt, now) {
           let distToSpike = Math.hypot(spike.x - bot.x, spike.z - bot.z);
           
           if (distToSpike < 2.0) {
-              // 走到包旁邊了，撿起來！
               spike.isDroppedOnGround = false;
               spike.carrier = bot.id; 
               if (spike.dropMesh) {
                   scene.remove(spike.dropMesh);
                   spike.dropMesh = null;
               }
-              // 撿完包瞬間，隨機抽戰術並計算進攻路線
               pickRandomStrategy(bot);
               console.log(`🤖 [Bot] 成功走到包旁邊並撿起 SPIKE！隨機抽到戰術 [${bot.strategy}] 並出發！`);
           } 
           else {
-              // 還沒走到包旁邊，先朝著包的座標走過去！
               bot.currentStrategy = 'get_spike';
               moveBotTowards(bot, spike.x, spike.z, dt, 1.5);
           }
-          
-          return; // 正在去撿包的路上，這一幀先不執行後面的進攻戰術與打人
+          return;
       }
-      // 2. 正常開局：如果還沒抽過戰術，抽一次
       else if (!bot.hasChosenRoundStrategy) {
           pickRandomStrategy(bot);
       }
 
-      // 3. 如果看見玩家，優先停下來開槍打人！(🔥 務必在這裡加上：看見人立刻強制中斷安包並歸零計時！)
-      if (canSeePlayer&& !myPlayer.isDead) {
+      if (canSeePlayer && !myPlayer.isDead) {
           bot.isPlanting = false; 
-          bot.plantTimer = 0; // 只要開戰或看見人，安包進度立刻歸零！
+          bot.plantTimer = 0;
 
           let aimYaw = yawToPlayer;
           bot.mesh.rotation.y = aimYaw; bot.yaw = aimYaw; 
@@ -4567,18 +4647,14 @@ function updateBotLogic(dt, now) {
               bot.lastShot = now;
           }
       } 
-      // 4. 沒看見玩家時，執行移動或安包
       else {
           let targetSite = (bot.currentStrategy === 'site_B') ? sites.B : sites.A;
           let distToSite = Math.hypot(targetSite.x - bot.x, targetSite.z - bot.z);
-
-          // 💡 包點的實際半徑是 sites.A.radius（即 8.0 公尺）
-          // 我們設定一個「安全安包半徑」（例如 6.0 公尺），逼它走進去一點點再開始下包
           let safePlantRadius = (targetSite.radius || 8.0) - 2.0; 
           let isInsideSite = (distToSite <= safePlantRadius);
 
           if (bot.currentStrategy !== 'get_spike' && isInsideSite) {
-              bot.path = []; // 確實深入包點內！清空路徑，準備安包
+              bot.path = []; 
 
               if (!bot.isPlanting) {
                   bot.isPlanting = true; 
@@ -4587,12 +4663,8 @@ function updateBotLogic(dt, now) {
               }
               
               bot.plantTimer += dt;
-              
-              // 💡 4秒安包時間到！
               if (bot.plantTimer >= 4.0) {
-                  // 🎯 直接使用它當下站立的座標 (bot.x, bot.z) 下包，點內的任何位置都能放！
                   plantSpike(bot.x, bot.z, true);
-                  
                   bot.isPlanting = false; 
                   bot.plantTimer = 0;
                   bot.currentStrategy = 'defend_spike';
@@ -4600,14 +4672,12 @@ function updateBotLogic(dt, now) {
               }
           } 
           else {
-              // 如果還沒走到安全區內，或是中途走出去/開槍中斷，立刻將 4 秒計時歸零！
               if (bot.isPlanting) {
                   console.log("⚠️ [安包中斷] 離開了包點範圍，安包進度歸零！");
               }
               bot.isPlanting = false; 
               bot.plantTimer = 0;
 
-              // 沿著路徑移動
               if (bot.path && bot.path.length > 0) {
                   let nextNodeId = bot.path[0];
                   let wp = navNodes.find(n => n.id === nextNodeId);
@@ -4624,15 +4694,13 @@ function updateBotLogic(dt, now) {
               }
           }
       }
-      
       return; 
   }
 
   // ==========================================
-  // 🛡️ 防守方（Defender）邏輯
+  // 🛡️ 防守方（Defender）邏輯：已下包回防與拆包
   // ==========================================
-  if (bot.team === 'defender' && !canSeePlayer) {
-    if (spike.planted) {
+  if (bot.team === 'defender' && !canSeePlayer && spike.planted) {
       let sDx = spike.x - bot.x; let sDz = spike.z - bot.z; let sDist = Math.hypot(sDx, sDz);
       let distToA = Math.hypot(spike.x - sites.A.x, spike.z - sites.A.z);
       let distToB = Math.hypot(spike.x - sites.B.x, spike.z - sites.B.z);
@@ -4644,6 +4712,7 @@ function updateBotLogic(dt, now) {
           console.log("🚨 [突發狀況] 發現敵方已下包！立刻強制中斷當前行動準備回防！");
       }
 
+      // 距離 2 公尺內：開始拆包互動
       if (sDist <= 2.0) {
         bot.isNavigatingToSpike = false;
         bot.isRetaking = false;
@@ -4666,8 +4735,7 @@ function updateBotLogic(dt, now) {
           setTimeout(() => playSound(defuseSound, 0.4, {x: spike.x, y: 0, z: spike.z}), 120);
         }
 
-        // 💡 關鍵修正：只要因為開槍/打架中斷拆包，立刻套用 3.5 秒的歸零/半程存檔規則！
-        if (bot.isDefusing&& (canSeePlayer || heardNoise)) {
+        if (bot.isDefusing && (canSeePlayer || heardNoise)) {
             bot.isDefusing = false;
             if (bot.defuseProgress < 3.5) {
                 bot.defuseProgress = 0;
@@ -4676,7 +4744,7 @@ function updateBotLogic(dt, now) {
                 bot.defuseProgress = 3.5;
                 bot.isHalfWay = true;
             }
-            console.log(`🔫 [開槍中斷] 為了迎敵而放開拆包！當前進度重置/保留至: ${bot.defuseProgress}秒`);
+            console.log(`🔫 [開槍中斷] 為了迎敵而放開拆包！進度重置/保留至: ${bot.defuseProgress}秒`);
         }
 
         bot.defuseProgress += dt;
@@ -4693,19 +4761,46 @@ function updateBotLogic(dt, now) {
         return; 
       }
 
+        // ==========================================
+      // 🌟【把這段新加的直衝邏輯貼在這裡！】
+      // ==========================================
+      let canSeeSpike = false;
+      if (sDist < 20.0) {
+          let botEyePos = new THREE.Vector3(bot.x, 1.5, bot.z); 
+          let spikePos = new THREE.Vector3(spike.x, 0.5, spike.z);
+          let rayDir = spikePos.clone().sub(botEyePos).normalize();
+          let ray = new THREE.Raycaster(botEyePos, rayDir);
+          let intersects = ray.intersectObjects(collisionMeshes, true); 
+          let ray3DDist = spikePos.distanceTo(botEyePos);
+          if (intersects.length === 0 || intersects[0].distance > ray3DDist) { 
+              canSeeSpike = true; 
+          }
+      }
+
+      // 只要看見包，或者距離已經在 8 公尺內，直接放棄網格導航，直線衝向包點！
+      if (canSeeSpike || sDist <= 8.0) {
+          bot.path = []; // 清空網格路徑
+          moveBotTowards(bot, spike.x, spike.z, dt, 1.5); // 直接朝包衝過去
+          console.log(`[回防移動]看到包了 `);
+          return; // 結束這一幀，不執行後面的網格回防
+      }
+      // ==========================================
+
       bot.isDefusing = false;
 
+      // 如果尚未指派回防路線，初始化呼叫 findPathToA / findPathToB
       if (!bot.isRetaking) {
           bot.path = (distToA < distToB) ? findPathToA(bot) : findPathToB(bot);
           bot.isRetaking = true;
           console.log(`💣 [已下包回防] 鎖定完整路線，出發！目標: ${distToA < distToB ? '回防 A 點' : '回防 B 點'}`);
       }
 
+      // 沿著導航網格路徑移動
       if (bot.path && bot.path.length > 0) {
           let nextNodeId = bot.path[0];
           let wp = navNodes.find(n => n.id === nextNodeId);
           if (wp && typeof wp.x !== 'undefined' && typeof wp.z !== 'undefined') {
-              if (moveBotTowards(bot, wp.x, wp.z, dt, 1.5)) {
+              if (moveBotTowards(bot, wp.x, wp.z, dt, 1.0)) {
                   console.log(`✅ [回防移動] 成功到達節點 ID: ${nextNodeId}，切換下一個`);
                   bot.path.shift();
               }
@@ -4714,31 +4809,47 @@ function updateBotLogic(dt, now) {
               bot.path = [];
           }
       } else {
-          // 💡 關鍵修復：不要讓它盲目直線衝撞！改用 findPath 算出繞過障礙物的完整導航路徑
-          let currentNearest = getNearestNode(bot.x, bot.z);
-          let targetNode = getNearestNode(spike.x, spike.z); // 或目標點節點
-          bot.path = findPath(currentNearest, targetNode) || [];
+          // 路徑空了時的備用邏輯：嘗試直達包點或退守外圍據點(18/26)
+          let targetNode = (distToA < distToB) ? 5 : 6;
+          let startNode = getNearestNode(bot.x, bot.z);
+          let path = findPath(startNode, targetNode);
           
-          console.log(`🎯 [終點接續優化] 預設回防路徑已走完，重新透過導航網格計算通往節點 [${targetNode}] 的繞路路徑`);
+        // 💡 關鍵修復：如果人已經站在目標包點節點上了（startNode === targetNode），
+          // 代表它已經抵達終點！絕對不能再重新尋路，直接朝 Spike 移動準備拆包！
+          if (sDist <= 6.0 ||startNode === targetNode) {
+              bot.path = [];
+              moveBotTowards(bot, spike.x, spike.z, dt, 0.5);
+              console.log(`📍 [已抵達包點核心節點 ${targetNode}] 放棄網格尋路，直接朝 Spike 前進！`);
+          } else {
+              // 人還在半路，才需要重新計算通往目標節點的路徑
+              let path = findPath(startNode, targetNode);
+            }
+
+          if (path && path.length > 0) {
+              bot.path = path;
+              console.log(`🎯 [終點接續] 成功重新取得通往包點節點 [${targetNode}] 的路徑`);
+          } else {
+              let fallbackTarget = (targetNode === 5) ? 18 : 26;
+              console.warn(`⚠️ 無法直達包點節點 ${targetNode}，改為備用導航至包點外圍據點 [${fallbackTarget}]`);
+              let fallbackPath = findPath(startNode, fallbackTarget);
+              bot.path = (fallbackPath && fallbackPath.length > 0) ? fallbackPath : [];
+          }
       }
       return; 
-    } else {
+  } else if (bot.team === 'defender' && !spike.planted) {
       bot.wasSpikePlanted = false;
-    }
-
-    // 💡 修正：只有在「沒有正在回防、沒有在拆包、且非特殊任務」的閒置狀態下，才允許被聽聲辨位觸發
-  if (heardNoise && bot.tacticalRole === 'default' && !spike.planted && !bot.isRetaking) {
-      bot.tacticalRole = 'retake';
-      bot.path = (Math.random() < 0.5) ? findPathToA(bot) : findPathToB(bot);
-      console.log("👂 [聽見聲音] 防守方觸發聽聲辯位回防");
-      return;
-  }
+      // 聽聲辨位回防觸發
+      if (heardNoise && bot.tacticalRole === 'default' && !bot.isRetaking) {
+          bot.tacticalRole = 'retake';
+          bot.path = (Math.random() < 0.5) ? findPathToA(bot) : findPathToB(bot);
+          console.log("👂 [聽見聲音] 防守方觸發聽聲辯位回防");
+          return;
+      }
   }
 
   // 預設索敵開火與移動
   if (canSeePlayer || heardNoise) {
     bot.isPlanting = false; bot.plantTimer = 0;
-    
     bot.isNavigatingToSpike = false; bot.isFakeDefusing = false;
     if (!canSeePlayer && bot.tacticalRole === 'default') {
       bot.path = findPath(getNearestNode(bot.x, bot.z), getNearestNode(myPlayer.x, myPlayer.z));
@@ -4762,136 +4873,93 @@ function updateBotLogic(dt, now) {
   }
 
   // ==========================================
-  // 🌐 所有人共用的導航移動與路徑消耗區塊
+  // 🌐 所有人共用的導航移動與路徑消耗區塊（僅供巡邏與進攻使用）
   // ==========================================
   if (!bot.isDefusing && !bot.isPlanting && !bot.isFakeDefusing) {
       
-      // 💡 關鍵修正：如果是「進攻方」且「已經下包」，下完包後直接留在包點附近架槍守包，絕對不準亂跑！
       if (spike.planted && bot.team === 'attacker') {
           let sDist = Math.hypot(spike.x - bot.x, spike.z - bot.z);
           if (sDist > 4.0) {
-              // 如果離包太遠，稍微走近一點點到包點附近守
               let nearestSiteNode = getNearestNode(spike.x, spike.z);
               bot.path = findPath(getNearestNode(bot.x, bot.z), nearestSiteNode) || [];
           } else {
-              bot.path = []; // 清空路徑，留在原地架槍防守！
+              bot.path = []; 
           }
       }
       else {
-          // 如果路徑為空時的補救處理
           if (!bot.path || bot.path.length === 0) {
-              bot.isLockedPatrolRoute = false;// 💡 解除巡邏鎖定，允許重新抽籤
+              bot.isLockedPatrolRoute = false;
 
               if (bot.team === 'attacker' && !spike.planted) {
-              
-              // 1. 剛執行完「中路慢打」或「控大路」，且還沒開始 20 秒計時
-              if ((bot.currentStrategy === 'mid_push' || bot.currentStrategy === 'controlling_long_A' || bot.currentStrategy === 'controlling_long_B') && !bot.isHoldingSlowPlay) {
-                  bot.isHoldingSlowPlay = true;
-                  bot.slowPlayHoldTimer = 20.0; // 設定 20 秒原地蹲點/控場
-                  console.log(`⏱️ [戰術控場] 已到達指定位置（${bot.currentStrategy}），開始執行 20 秒蹲點架槍...`);
-              } 
-              // 2. 正在進行 20 秒倒數中
-              else if (bot.isHoldingSlowPlay) {
-                  bot.slowPlayHoldTimer -= dt;
-                  
-                  // 20 秒時間到！解除控場，發起總攻或轉點
-                  if (bot.slowPlayHoldTimer <= 0) {
-                      bot.isHoldingSlowPlay = false;
-                      console.log("🚀 [戰術控場] 20秒時間到！解除控場，準備發起總攻！");
-
-                      let targetSite = Math.random() < 0.5 ? 'A' : 'B';
-                      if (bot.currentStrategy === 'controlling_long_A') {
-                          targetSite = Math.random() < 0.7 ? 'A' : 'B';
-                      } else if (bot.currentStrategy === 'controlling_long_B') {
-                          targetSite = Math.random() < 0.7 ? 'B' : 'A';
+                  if ((bot.currentStrategy === 'mid_push' || bot.currentStrategy === 'controlling_long_A' || bot.currentStrategy === 'controlling_long_B') && !bot.isHoldingSlowPlay) {
+                      bot.isHoldingSlowPlay = true;
+                      bot.slowPlayHoldTimer = 20.0;
+                      console.log(`⏱️ [戰術控場] 開始執行 20 秒蹲點架槍...`);
+                  } 
+                  else if (bot.isHoldingSlowPlay) {
+                      bot.slowPlayHoldTimer -= dt;
+                      if (bot.slowPlayHoldTimer <= 0) {
+                          bot.isHoldingSlowPlay = false;
+                          console.log("🚀 [戰術控場] 20秒時間到！發起總攻！");
+                          let site = Math.random() < 0.5 ? 'A' : 'B';
+                          bot.currentStrategy = (site === 'A') ? 'site_A' : 'site_B';
+                          if (Math.random() < 0.5) {
+                              bot.path = getAttackerRushPath(bot, site);
+                          } else {
+                              bot.path = getAttackerMidSplitPath(bot, site);
+                          }
                       }
-
-                      bot.currentStrategy = (targetSite === 'A') ? 'site_A' : 'site_B';
-                      let siteNodeId = (targetSite === 'A') ? 5 : 6;
-                      bot.path = findPath(getNearestNode(bot.x, bot.z), siteNodeId) || [siteNodeId];
-                      console.log(`⚡ [總攻發起] 目標鎖定 ${targetSite} 點，衝鋒！`);
-                  }
-              } 
-              // 3. 一般戰術（如直接 Rush）走完時的處理
-              else {
-                  if (bot.hasChosenRoundStrategy) {
-                      let siteNodeId = (bot.currentStrategy === 'site_B') ? 6 : 5;
-                      bot.path = findPath(getNearestNode(bot.x, bot.z), siteNodeId) || [];
+                  } 
+                  else {
+                      if (bot.hasChosenRoundStrategy) {
+                          let siteNodeId = (bot.currentStrategy === 'site_B') ? 6 : 5;
+                          bot.path = findPath(getNearestNode(bot.x, bot.z), siteNodeId) || [];
+                      }
                   }
               }
-          }
-
-
-            else if (bot.team === 'defender') {
-                  if (spike.planted) {
-                      let sDist = Math.hypot(spike.x - bot.x, spike.z - bot.z);
-                      let distToA = Math.hypot(spike.x - sites.A.x, spike.z - sites.A.z);
-                      let distToB = Math.hypot(spike.x - sites.B.x, spike.z - sites.B.z);
-
-                      if (sDist <=3.0) {
-          // 距離 Spike 4 公尺內，直接朝 Spike 移動準備拆包
-          moveBotTowards(bot, spike.x, spike.z, dt, 1.5);
-      } else {
-          // 💡 關鍵修正：如果路徑已經走完（或還沒設定），絕對不准再呼叫會重複抽籤的 findPathToA/B！
-          // 改為「如果還沒有導航路徑，就只用最單純的網格尋路抓一次目標點，並用標記鎖定」
-          if (!bot.path || bot.path.length === 0) {
-              if (!bot.hasLockedRetakeFinal) {
-                  let targetNode = (distToA < distToB) ? 5 : 6; // A點節點5 或 B點節點6
-                  bot.path = findPath(getNearestNode(bot.x, bot.z), targetNode) || [];
-                  bot.hasLockedRetakeFinal = true; // 鎖定！不准再重複重抽
-                  console.log(`🎯 [終點接續] 繞後路徑已走完，鎖定最短導航網格直奔包點節點 [${targetNode}]`);
-              }
-          }
-
-          // 順順地沿著鎖定的路徑走
-          if (bot.path && bot.path.length > 0) {
-              let nextNodeId = bot.path[0];
-              let wp = navNodes.find(n => n.id === nextNodeId);
-              if (wp && typeof wp.x !== 'undefined' && typeof wp.z !== 'undefined') {
-                  if (moveBotTowards(bot, wp.x, wp.z, dt, 1.5)) {
-                      bot.path.shift();
-                  }
-              } else {
-                  bot.path = [];
-              }
-          } else {
-              // 萬一真的沒路徑，直接向 Spike 直奔
-              moveBotTowards(bot, spike.x, spike.z, dt, 1.5);
-          }
-      }
-                  } else {
-    // 💡 關鍵修復：只有當「還沒有巡邏路徑」時，才隨機抽籤指派一條完整的巡邏線
-              if (!bot.isLockedPatrolRoute ) {
-                  let newPatrolPath = (Math.random() < 0.5) ? findPathToA(bot) : findPathToB(bot);
-                  if (newPatrolPath && newPatrolPath.length > 0) {
-                      bot.path = newPatrolPath;
-                      bot.isLockedPatrolRoute = true; // 鎖定！在走完這條完整的繞後路線之前，不准重抽！
-                      console.log(`🛡️ [防守巡邏] 成功指派路線！總共有 ${bot.path.length} 個節點，路徑內容：`, bot.path);
-                  } else {
-                      bot.path = [getNearestNode(bot.x, bot.z)];
-                  }
-              }
-          }
-              } 
-              else if (bot.team === 'attacker' && bot.hasChosenRoundStrategy) {
-                  let siteNodeId = (bot.currentStrategy === 'site_B') ? 6 : 5;
-                  bot.path = findPath(getNearestNode(bot.x, bot.z), siteNodeId) || [];
-              }
+              // 🛡️ 防守方未下包時：開局只抽一次路線，走到後就原地架槍守候
+            else if (bot.team === 'defender' && !spike.planted) {
+                if (!bot.hasChosenDefenderPath) {
+                    // 開局隨機抽一次 A 路線或 B 路線
+                    let initialPath = (Math.random() < 0.5) ? findPathToA(bot) : findPathToB(bot);
+                    
+                    if (initialPath && initialPath.length > 1) {
+                        bot.path = initialPath;
+                        bot.hasChosenDefenderPath = true; // 鎖定！整局防守絕不二次重抽
+                        console.log(`🛡️ [防守開局部署] 已選定防守路線，共 ${bot.path.length} 個節點，出發就定位！`);
+                    } else {
+                        // 保底防呆：如果抽出來的陣列太短，強制指派直達 A(5) 或 B(6)
+                        let fallbackTarget = (Math.random() < 0.5) ? 5 : 6;
+                        let fallbackPath = findPath(getNearestNode(bot.x, bot.z), fallbackTarget);
+                        if (fallbackPath && fallbackPath.length > 1) {
+                            bot.path = fallbackPath;
+                            bot.hasChosenDefenderPath = true;
+                        } else {
+                            bot.path = [];
+                            bot.hasChosenDefenderPath = false; // 沒拿到好路徑就下一幀再給一次機會
+                        }
+                    }
+                } else {
+                    // 已經選過路線，且一路走完（路徑空了）抵達防守點了：
+                    // 留在原地清空路徑，冷靜架槍守點，絕對不准再亂跑或重抽！
+                    bot.path = []; 
+                }
+            }
           }
       }
       
-      // 只要身上有 path，就乖乖照著往前走，並印出到達的節點 ID
+      // 共用路徑消耗執行
       if (bot.path && bot.path.length > 0) {
         let nextNodeId = bot.path[0];
         let wp = navNodes.find(n => n.id === nextNodeId);
         
         if (wp && typeof wp.x !== 'undefined' && typeof wp.z !== 'undefined') {
             if (moveBotTowards(bot, wp.x, wp.z, dt, 1.0)) {
-                console.log(`✅ [移動到達] 成功到達節點 ID: ${nextNodeId}，切換下一個點`);
+              console.log(`✅ [移動到達] 成功到達節點 ID: ${nextNodeId}，切換下一個點`);
                 bot.path.shift(); 
             }
         } else {
-            console.warn(`⚠️ 警告：路徑中包含無效節點 ID [${nextNodeId}]，重置路徑`);
+          console.warn(`⚠️ 警告：路徑中包含無效節點 ID [${nextNodeId}]，重置路徑`);
             bot.path = [];
         }
       }
