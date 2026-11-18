@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FIYLORANT v26.11.5</title>
+  <title>FIYLORANT v26.11.6</title>
   <style>
 
     /* 仿特戰英豪對戰報告面板（移到畫面中間偏右） */
@@ -309,7 +309,7 @@
 <div id="main-menu" class="overlay">
   <div class="panel">
     <h1>FIYLORANT</h1>
-    <p>v26.11.5</p>
+    <p>v26.11.6</p>
     
     <div class="form-group">
       <label>玩家暱稱</label>
@@ -348,23 +348,27 @@
   <!-- 標題與版本號 -->
   <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; margin-bottom: 10px;">
     <span style="color: #00ffcc; font-weight: bold; font-size: 14px;">📢 版本更新公告</span>
-    <span style="font-size: 11px; background: rgba(0,255,204,0.15); color: #00ffcc; padding: 2px 6px; border-radius: 4px;">v26.11.5</span>
+    <span style="font-size: 11px; background: rgba(0,255,204,0.15); color: #00ffcc; padding: 2px 6px; border-radius: 4px;">v26.11.6</span>
   </div>
 
   <!-- 更新內容清單 -->
   <div style="font-size: 12px; color: #bcbcbc; display: flex; flex-direction: column; gap: 10px; max-height: 300px; overflow-y: auto;">
+
+     
+
     <div>
-      <strong style="color: #fff;">🟢 戰術暫停系統上線</strong>
-      <p style="margin: 3px 0 0 0;">支援 10 秒投票機制、房主/客戶端雙端同步、正式暫停正計時與解除準備。</p>
+      <strong style="color: #fff;">🔧 優化功能</strong>
+      <p style="margin: 3px 0 0 0;">1.修復回合結束後重複計分的問題。</p>
+      <p style="margin: 3px 0 0 0;">2.優化角色移動與碰撞檢測，提升遊戲流暢度。</p>
     </div>
+
     <div>
-      <strong style="color: #fff;">🔧 體驗與防護優化</strong>
-      <p style="margin: 3px 0 0 0;">修復回合結束後重複計分的問題。</p>
+      <strong style="color: #fff;">📢 新增功能</strong>
+      <p style="margin: 3px 0 0 0;">1.在局內esc菜單中可以調整滑鼠靈敏度與聲音設定。</p>
+      <p style="margin: 3px 0 0 0;">2.支援 10 秒投票機制、房主/客戶端雙端同步、正式暫停正計時與解除準備。</p>
+      
     </div>
-    <div>
-      <strong style="color: #fff;">📢 新增靈敏度與聲音調整</strong>
-      <p style="margin: 3px 0 0 0;">在局內esc菜單中可以調整滑鼠靈敏度與聲音設定。</p>
-    </div>
+    
   </div>
 </div>
 
@@ -2596,6 +2600,9 @@ function startGameFromLobby() {
     (roomState.players.find(x => x.isHost)?.team || 'attacker') : 
     (roomState.players.find(x => x.id === peer.id)?.team || 'defender'); 
   
+    let myRoomData = roomState.players.find(x => x.id === myPlayer.id);
+  let mySlotIdx = (myRoomData && myRoomData.slotIndex !== undefined) ? myRoomData.slotIndex : 2;
+  myPlayer.x = (mySlotIdx - 2) * 2.0;
   myPlayer.z = myPlayer.team === 'attacker' ? 45 : -45;
   
   document.getElementById('room-tag').innerText = `房間對戰 [${myPlayer.team === 'attacker' ? '進攻方' : '防守方'}]`;
@@ -2607,6 +2614,16 @@ function startGameFromLobby() {
   roomState.players.forEach(p => {
     if (p.isBot) {
       spawnBotInGame(p.id, p.name, p.team);
+
+        // 🎯 【新增 2】機器人生成後，立刻根據它的 slotIndex 調整 X 座標，讓多隻 Bot 也完美排開！
+      if (otherPlayers[p.id] && otherPlayers[p.id].mesh) {
+        let botSlotIdx = (p.slotIndex !== undefined) ? p.slotIndex : 2;
+        otherPlayers[p.id].x = (botSlotIdx - 2) * 2.0;
+        otherPlayers[p.id].z = p.team === 'attacker' ? 45 : -45;
+        otherPlayers[p.id].mesh.position.set(otherPlayers[p.id].x, 0, otherPlayers[p.id].z);
+      }
+
+
     }
   });
 
@@ -3408,6 +3425,26 @@ function updateMovement(dt) {
       if (isColliding(nextX, myPlayer.z, w)) collideX = true;
       if (isColliding(myPlayer.x, nextZ, w)) collideZ = true;
     }
+
+    // 🛡️【修改】所有活著的其他角色（不分敵我）都會產生實體碰撞！
+      const playerBodyRadius = 0.5; // 角色碰撞半徑
+      
+      Object.entries(otherPlayers).forEach(([id, other]) => {
+          // 只要對方死掉或沒有 mesh，就跳過；只要活著，就會擋住！
+          if (other.isDead || !other.mesh) return;
+
+          if (Math.hypot(nextX - other.x, myPlayer.z - other.z) < playerBodyRadius) {
+              collideX = true;
+          }
+          if (Math.hypot(myPlayer.x - other.x, nextZ - other.z) < playerBodyRadius) {
+              collideZ = true;
+          }
+      });
+
+
+
+
+
     if (!collideX) myPlayer.x = nextX;
     if (!collideZ) myPlayer.z = nextZ;
   }
@@ -3497,6 +3534,22 @@ function performMeleeAttack(knifeStats) {
     }
 
     if (hitId) {
+
+      // 🛡️【新增】同隊傷害為 0 的防呆判定
+      let targetTeam = '';
+      if (hitId === 'range_dummy') {
+          targetTeam = 'defender'; // 訓練場靶子預設為防守方
+      } else if (otherPlayers[hitId]) {
+          targetTeam = otherPlayers[hitId].team;
+      } else if (hitId === myPlayer.id) {
+          targetTeam = myPlayer.team;
+      }
+
+      // 如果打中的目標跟你是同一隊，直接強制傷害歸零，並跳過後續扣血與特效！
+      if (targetTeam === myPlayer.team) {
+          // 也可以選擇在這裡印個log：console.log("⚠️ 打到隊友，傷害歸零！");
+          return; 
+      }
 
       // 💡 【新增】在打下去之前，先記錄他原本是不是已經死掉了
       let wasDead = otherPlayers[hitId] ? otherPlayers[hitId].isDead : false;
@@ -3676,6 +3729,21 @@ function executeRaycastShot(weapon, dir, isPellet) {
     }
 
     if (hitId) {
+      // 🛡️【新增】同隊傷害為 0 的防呆判定
+      let targetTeam = '';
+      if (hitId === 'range_dummy') {
+          targetTeam = 'defender'; // 訓練場靶子預設為防守方
+      } else if (otherPlayers[hitId]) {
+          targetTeam = otherPlayers[hitId].team;
+      } else if (hitId === myPlayer.id) {
+          targetTeam = myPlayer.team;
+      }
+
+      // 如果打中的目標跟你是同一隊，直接強制傷害歸零，並跳過後續扣血與特效！
+      if (targetTeam === myPlayer.team) {
+          // 也可以選擇在這裡印個log：console.log("⚠️ 打到隊友，傷害歸零！");
+          return; 
+      }
       let dmg = weapon.dmgBody;
       let isHead = (hitPart === 'head');
 
@@ -3770,6 +3838,8 @@ function handleInGameData(data) {
       hp: data.hp, 
       team: data.team, 
       isDead: data.isDead, 
+      x: data.x, // 💡 初始化座標
+      z: data.z, // 💡 初始化座標
       yaw: 0, 
       name: data.name || 'Agent_1', // 🎯 關鍵：初始化時把對方的暱稱存起來！
       // 💡 【新增】初始化時建立 KDA 屬性
@@ -3786,6 +3856,10 @@ function handleInGameData(data) {
   otherPlayers[targetId].kills = data.kills || 0;
   otherPlayers[targetId].deaths = data.deaths || 0;
   otherPlayers[targetId].assists = data.assists || 0;
+
+  // 🎯 【絕對關鍵】把收到的即時座標存進物件屬性，碰撞判定才抓得到！
+  otherPlayers[targetId].x = data.x;
+  otherPlayers[targetId].z = data.z;
   
   // 🎯 確保隨時同步對方的最新暱稱
   if (data.name) {
@@ -4095,7 +4169,9 @@ function resetRound() {
 
   myPlayer.hp = 100; myPlayer.isDead = false; myPlayer.isInteracting = false; myPlayer.isReloading = false; closeShop();
   myPlayer.adsLevel = 0; myPlayer.recoilIndex = 0; updateADSFOV();
-  myPlayer.z = myPlayer.team === 'attacker' ? 45 : -45; myPlayer.x = 0; myPlayer.y = 1.6; myPlayer.yaw = 0; myPlayer.pitch = 0; myPlayer.groundY = 0; myPlayer.crouchOffset = 1.6; myPlayer.jumpY = 0;
+  let myRoomData = roomState.players.find(x => x.id === myPlayer.id);
+  let mySlotIdx = (myRoomData && myRoomData.slotIndex !== undefined) ? myRoomData.slotIndex : 2;
+  myPlayer.z = myPlayer.team === 'attacker' ? 45 : -45; myPlayer.x = (mySlotIdx - 2) * 2.0; myPlayer.y = 1.6; myPlayer.yaw = 0; myPlayer.pitch = 0; myPlayer.groundY = 0; myPlayer.crouchOffset = 1.6; myPlayer.jumpY = 0;
   
   droppedWeapons.forEach(d => scene.remove(d.mesh));
   droppedWeapons = [];
@@ -4509,6 +4585,22 @@ function moveBotTowards(bot, targetX, targetZ, dt, stopDist) {
           fullCollide = true;
           break;
       }
+  }
+
+  // 🛡️【新增】Bot 的角色實體碰撞檢測（不分敵我，會被任何人擋住卡位）
+  const botBodyRadius = 0.5;
+  if (!fullCollide) {
+      // 檢查是否撞到本地玩家
+      if (!myPlayer.isDead && Math.hypot(bNextX - myPlayer.x, bNextZ - myPlayer.z) < botBodyRadius) {
+          fullCollide = true;
+      }
+      // 檢查是否撞到其他線上玩家或 Bot
+      Object.entries(otherPlayers).forEach(([id, other]) => {
+          if (other.isDead || id === bot.id) return;
+          if (Math.hypot(bNextX - other.x, bNextZ - other.z) < botBodyRadius) {
+              fullCollide = true;
+          }
+      });
   }
 
   if (!fullCollide) {
