@@ -2751,9 +2751,9 @@ function initEngine() {
   updateGunModel('classic'); updateHUDWeapon();
 
   window.addEventListener('resize', onWindowResize);
-  document.addEventListener('keydown', handleKeyDown); 
-  document.addEventListener('keyup', handleKeyUp);
-  document.addEventListener('mousemove', handleMouseMove); 
+  document.addEventListener('keydown', handleKeyDown, { capture: true }); // ✅ 搶先瀏覽器一步抓取按鍵！
+  document.addEventListener('keyup', handleKeyUp, { capture: true });         // ✅
+  document.addEventListener('mousemove', handleMouseMove);
   
   // 🎯 1. 點擊畫面自動請求鎖定滑鼠指標
   document.addEventListener('mousedown', e => { 
@@ -2840,7 +2840,8 @@ function initRangeEngine() {
   updateGunModel('vandal'); updateHUDWeapon();
 
   window.addEventListener('resize', onWindowResize);
-  document.addEventListener('keydown', handleKeyDown); document.addEventListener('keyup', handleKeyUp);
+  document.addEventListener('keydown', handleKeyDown, { capture: true });
+  document.addEventListener('keyup', handleKeyUp, { capture: true });
   document.addEventListener('mousemove', handleMouseMove); 
   
   document.addEventListener('mousedown', e => { 
@@ -3232,21 +3233,28 @@ function updateHUDWeapon() {
   }
 }
 
-// --- 控制與按鍵 (精準阻斷 Ctrl+W，讓 Ctrl 蹲下順暢運作) ---
+// --- 控制與按鍵 (僅防護左側 Ctrl 與 WASDRQ，右側 Ctrl 留作他用) ---
 function handleKeyDown(e) {
-  if (e.ctrlKey && ['KeyW', 'KeyS', 'KeyD', 'KeyR', 'KeyQ'].includes(e.code)) {
+  const targetKeys = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyR', 'KeyQ'];
+  
+  // 如果按的是左側 Ctrl 且搭配 WASDRQ，直接攔截不讓瀏覽器關分頁
+  if (e.code === 'ControlLeft' && targetKeys.some(k => keys[k])) {
     e.preventDefault();
+    e.stopPropagation();
     e.stopImmediatePropagation();
-    if (['KeyW', 'KeyS', 'KeyD'].includes(e.code)) {
-      keys[e.code] = true;
-    }
-    return false;
+  }
+
+  // 如果按的是右側 Ctrl (ControlRight)，我們不阻攔它，留給你寫防當機或重置功能！
+  if (e.code === 'ControlRight') {
+    // 💡 這裡可以放你自定義的右側 Ctrl 防當機觸發邏輯！
+    // 例如：console.log("觸發右側 Ctrl 防呆機制！");
   }
 
   if (e.key === 'Escape') {
     const shop = document.getElementById('shop-menu');
     if (shop.style.display === 'flex') closeShop();
   }
+
   keys[e.code] = true; 
   if (e.code === 'KeyB') toggleShop();
   if (!isLocked) return;
@@ -3254,19 +3262,21 @@ function handleKeyDown(e) {
   if (e.code === 'Digit1') switchWeapon(1); 
   if (e.code === 'Digit2') switchWeapon(2); 
   if (e.code === 'Digit3') switchWeapon(3);
-  if (e.code === 'Digit4' ) switchWeapon(4);
+  if (e.code === 'Digit4') switchWeapon(4);
   if (e.code === 'KeyG') {
     if (myPlayer.activeSlot === 'spike') {
-      dropSpike(); // 如果手上正拿著 Spike，按 G 就把它丟到地上！
+      dropSpike();
     } else {
-      dropCurrentWeapon(); // 否則維持原本的丟槍功能
+      dropCurrentWeapon();
     }
   }
 }
 
 function handleKeyUp(e) { 
-  if (e.ctrlKey && ['KeyW', 'KeyS', 'KeyD', 'KeyR', 'KeyQ'].includes(e.code)) {
+  const targetKeys = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyR', 'KeyQ', 'ControlLeft'];
+  if (targetKeys.includes(e.code)) {
     e.preventDefault();
+    e.stopPropagation();
     e.stopImmediatePropagation();
   }
   keys[e.code] = false; 
